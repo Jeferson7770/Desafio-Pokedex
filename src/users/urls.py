@@ -1,7 +1,5 @@
 from django.urls import path
 
-from fincecore.src.users.views.logout import LogoutView
-
 from ..users.views.laywer import LawyerProfileView
 from .views.register import (
     RegisterView,
@@ -9,6 +7,10 @@ from .views.register import (
 
 from .views.login import (
     LoginView
+)
+
+from .views.logout import (
+    LogoutView
 )
 
 from .views.reset_password import (
