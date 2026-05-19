@@ -17,6 +17,7 @@ dj-database-url = "^3.1.2"
 drf-spectacular = "^0.29.0"
 psycopg = {extras = ["binary"], version = "^3.3.4"}
 django-cors-headers = "^4.9.0"
+gunicorn = "^26.0.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
