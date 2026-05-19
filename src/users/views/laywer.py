@@ -1,5 +1,6 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from ..models.laywer import LawyerProfile
 from ..serializers.laywer import LawyerProfileUpdateSerializer
 
@@ -7,6 +8,7 @@ from ..serializers.laywer import LawyerProfileUpdateSerializer
 class LawyerProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = LawyerProfileUpdateSerializer
     permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
     def get_object(self):
         return self.request.user.profile
