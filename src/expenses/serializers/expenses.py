@@ -26,7 +26,3 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["firm"]
-
-    def create(self, validated_data):
-        firm = self.context["request"].user.firm_memberships.first().firm
-        return Expense.objects.create(firm=firm, **validated_data)
