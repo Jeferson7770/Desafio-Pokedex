@@ -1,6 +1,6 @@
 from django.urls import path
 
-from ..users.views.laywer import LawyerProfileView
+from ..users.views.laywer import LawyerProfileViewSet
 from .views.register import (
     RegisterView,
 )
@@ -22,7 +22,7 @@ urlpatterns = [
     path('register/', RegisterView.as_view()),
     path('login/', LoginView.as_view()),
     path('logout/', LogoutView.as_view()),
-    path('laywer-profile/', LawyerProfileView.as_view()),
+    path('laywer-profile/', LawyerProfileViewSet.as_view()),
     path('password-reset/', RequestPasswordResetView.as_view()),
     path('password-reset-confirm/', ConfirmPasswordResetView.as_view()),
 ]

@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from ..models.laywer import LawyerProfile
 
-class LawyerProfileUpdateSerializer(serializers.ModelSerializer):
+
+class LawyerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = LawyerProfile
         fields = [
@@ -10,16 +11,39 @@ class LawyerProfileUpdateSerializer(serializers.ModelSerializer):
             "oab_number",
             "oab_state",
             "cpf",
-            "office_address",
-            "bank_name",
-            "bank_account",
-            "practice_areas",
+            "birth_date",
             "years_of_experience",
+            "tax_regime",
+            "cep",
+            "street",
+            "number",
+            "complement",
+            "neighborhood",
+            "city",
+            "state",
+            "office_type",
+            "practice_areas",
+            "has_employees",
             "average_monthly_income",
             "average_monthly_expense",
-            "financial_goal",
-            "office_type",
             "income_variability",
+            "has_bank_connected",
             "goal_type",
-            "birth_date"
+            "financial_goal",
+            "onboarding_completed",
+            "created_at",
         ]
+        read_only_fields = ["created_at", "has_bank_connected"]
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if request and request.method == "POST":
+            if hasattr(request.user, "profile"):
+                raise serializers.ValidationError(
+                    {"detail": "Este usuário já possui um perfil de advogado cadastrado."}
+                )
+        return attrs
+
+    def create(self, validated_data):
+        validated_data["user"] = self.context["request"].user
+        return super().create(validated_data)
