@@ -1,0 +1,30 @@
+from django.db import models
+
+class Suggestion(models.Model):
+    class Category(models.TextChoices):
+        MELHORIA = "MELHORIA", "Melhoria de Funcionalidade"
+        NOVA_FUNC = "NOVA_FUNC", "Nova Funcionalidade"
+        BUG = "BUG", "Relato de Bug"
+        OUTRO = "OUTRO", "Outro"
+
+    firm = models.ForeignKey(
+        "firms.Firm", 
+        on_delete=models.CASCADE, 
+        related_name="suggestions"
+    )
+    
+    name = models.CharField(max_length=255)
+    email = models.EmailField()
+    
+    category = models.CharField(
+        max_length=20, 
+        choices=Category.choices, 
+        default=Category.MELHORIA
+    )
+    subject = models.CharField(max_length=255)
+    message = models.TextField()
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"[{self.get_category_display()}] {self.subject} - por {self.name}"
