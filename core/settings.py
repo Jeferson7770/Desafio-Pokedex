@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "src.integrations",
     "src.transactions",
     "src.users",
+    "src.honorarios",
     "src.suggestions",
     "drf_spectacular",
 ]
