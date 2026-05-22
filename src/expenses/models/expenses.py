@@ -5,7 +5,7 @@ class Expense(models.Model):
     class Frequency(models.TextChoices):
         ONE_TIME = "ONE_TIME", "Única"
         MONTHLY = "MONTHLY", "Mensal"
-        YEARLY = "YEARLY", "Anual"
+        YEARLY = "ANNUAL", "Anual"
 
     class Category(models.TextChoices):
         ESTRUTURA = "ESTRUTURA", "Estrutura"
