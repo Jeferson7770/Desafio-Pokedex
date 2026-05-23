@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
 from django.db import models
 from datetime import datetime, timedelta
 from ..models.relatorios import FinancialReportSummary
@@ -37,9 +38,15 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
-        firm = self.request.user.firm
+        user = self.request.user
+        firm = getattr(user, 'firm', None)
         
-        if serializer.is_bulk:
+        if not firm:
+            raise ValidationError(
+                {"detail": "O usuário autenticado não possui uma empresa/firma vinculada ao seu perfil."}
+            )
+        
+        if getattr(serializer, 'is_bulk', False):
             for item in serializer.validated_data:
                 item['firm'] = firm
             serializer.save()
