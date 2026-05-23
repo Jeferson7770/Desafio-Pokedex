@@ -21,7 +21,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "src.cases",
-    "src.cashflow",
+    "src.relatorios",
     "src.expenses",
     "src.firms",
     "src.integrations",

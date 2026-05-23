@@ -11,7 +11,7 @@ urlpatterns = [
     path("api/auth/", include("src.users.urls")),
     path("api/firms/", include("src.firms.urls")),
     path("api/expenses/", include("src.expenses.urls")),
-    path("api/cashflow/", include("src.cashflow.urls")),
+    path("api/relatorios/", include("src.relatorios.urls")),
     path("api/suggestions/", include("src.suggestions.urls")),
     path("api/honorarios/", include("src.honorarios.urls")),
     path("api/cases/", include("src.cases.urls")),
