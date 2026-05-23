@@ -12,11 +12,20 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
     queryset = FinancialReportSummary.objects.all()
     serializer_class = FinancialReportDashboardSerializer
 
+    def _get_user_firm(self, user):
+        """
+        Busca a firma do usuário através do relacionamento de memberships,
+        idêntico ao funcionamento dos honorários.
+        """
+        membership = user.firm_memberships.first()
+        if not membership:
+            raise ValidationError(
+                {"detail": "O usuário autenticado não possui uma empresa/firma vinculada ao seu perfil."}
+            )
+        return membership.firm
+
     def get_queryset(self):
-        user = self.request.user
-        if hasattr(user, 'firm') and user.firm:
-            return self.queryset.filter(firm=user.firm)
-        return self.queryset.none()
+        return self.queryset.filter(firm__members__user=self.request.user)
 
     def get_serializer(self, *args, **kwargs):
         if isinstance(kwargs.get('data'), list):
@@ -39,12 +48,7 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        firm = getattr(user, 'firm', None)
-        
-        if not firm:
-            raise ValidationError(
-                {"detail": "O usuário autenticado não possui uma empresa/firma vinculada ao seu perfil."}
-            )
+        firm = self._get_user_firm(user)
         
         if getattr(serializer, 'is_bulk', False):
             for item in serializer.validated_data:
