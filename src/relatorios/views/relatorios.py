@@ -1,3 +1,4 @@
+# src/relatorios/views/relatorios.py
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -13,11 +14,27 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        
         if hasattr(user, 'firm') and user.firm:
             return self.queryset.filter(firm=user.firm)
-            
         return self.queryset.none()
+
+    def get_serializer(self, *args, **kwargs):
+        if isinstance(kwargs.get('data'), list):
+            kwargs['many'] = True
+        return super().get_serializer(*args, **kwargs)
+
+    def list(self, request, *args, **kwargs):
+        filters = self._resolve_date_filters(request)
+        queryset = self.get_queryset().filter(filters)
+
+        if not queryset.exists():
+            return Response(
+                {"detail": "Nenhum dado processado para este intervalo."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def _resolve_date_filters(self, request) -> models.Q:
         period = request.query_params.get('period', 'semester')
@@ -42,16 +59,3 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
             check_date = today - timedelta(days=i*30)
             q_objects |= models.Q(month=check_date.month, year=check_date.year)
         return q_objects
-
-    def list(self, request, *args, **kwargs):
-        filters = self._resolve_date_filters(request)
-        queryset = self.get_queryset().filter(filters)
-
-        if not queryset.exists():
-            return Response(
-                {"detail": "Nenhum dado processado para este intervalo."}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        serializer = FinancialReportDashboardSerializer(queryset)
-        return Response(serializer.data)
