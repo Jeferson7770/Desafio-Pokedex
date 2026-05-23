@@ -2,8 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
-from django.db import models
-from datetime import datetime, timedelta
+from django.utils import timezone
 from ..models.relatorios import FinancialReportSummary
 from ..serializers.relatorios import FinancialReportDashboardSerializer
 
@@ -14,8 +13,7 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
 
     def _get_user_firm(self, user):
         """
-        Busca a firma do usuário através do relacionamento de memberships,
-        idêntico ao funcionamento dos honorários.
+        Busca a firma do usuário através do relacionamento de memberships.
         """
         membership = user.firm_memberships.first()
         if not membership:
@@ -27,56 +25,51 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return self.queryset.filter(firm__members__user=self.request.user)
 
-    def get_serializer(self, *args, **kwargs):
-        if isinstance(kwargs.get('data'), list):
-            kwargs['many'] = True
-        return super().get_serializer(*args, **kwargs)
-
     def list(self, request, *args, **kwargs):
-        filters = self._resolve_date_filters(request)
-        queryset = self.get_queryset().filter(filters)
+        """
+        Sobrescreve o list tradicional para retornar o payload único do relatório 
+        com base nos filtros de ano e mês (?year=2026&month=05).
+        """
+        firm = self._get_user_firm(request.user)
+        
+        now = timezone.now()
+        year = request.query_params.get('year', str(now.year))
+        month = request.query_params.get('month', str(now.month))
 
-        serializer = self.get_serializer(queryset, many=True)
+        try:
+            report_instance = self.get_queryset().get(firm=firm, year=year, month=month)
+        except FinancialReportSummary.DoesNotExist:
+            return Response(
+                {"detail": f"Nenhum relatório consolidado encontrado para o período {month}/{year}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = self.get_serializer(report_instance)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-    def perform_create(self, serializer):
-        user = self.request.user
+        """
+        Garante o comportamento de atualizar ou criar (Upsert) baseado em firma/ano/mês,
+        evitando duplicatas indesejadas no banco de dados.
+        """
+        user = request.user
         firm = self._get_user_firm(user)
         
-        if getattr(serializer, 'is_bulk', False):
-            for item in serializer.validated_data:
-                item['firm'] = firm
-            serializer.save()
-        else:
-            serializer.save(firm=firm)
-
-    def _resolve_date_filters(self, request) -> models.Q:
-        period = request.query_params.get('period', 'semester')
-        start_date_param = request.query_params.get('start_date')
-        end_date_param = request.query_params.get('end_date')
-
-        if start_date_param and end_date_param:
-            start_year, start_month = map(int, start_date_param.split('-'))
-            end_year, end_month = map(int, end_date_param.split('-'))
-            return (
-                models.Q(year__gt=start_year) | models.Q(year=start_year, month__gte=start_month)
-            ) & (
-                models.Q(year__lt=end_year) | models.Q(year=end_year, month__lte=end_month)
-            )
-
-        period_map = {'month': 1, 'trimester': 3, 'semester': 6, 'year': 12}
-        months_to_subtract = period_map.get(period, 6)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        today = datetime.now()
-        q_objects = models.Q()
-        for i in range(months_to_subtract):
-            check_date = today - timedelta(days=i*30)
-            q_objects |= models.Q(month=check_date.month, year=check_date.year)
-        return q_objects
+        year = serializer.validated_data.get('year')
+        month = serializer.validated_data.get('month')
+
+        instance, created = FinancialReportSummary.objects.update_or_create(
+            firm=firm,
+            year=year,
+            month=month,
+            defaults=serializer.validated_data
+        )
+
+        response_serializer = self.get_serializer(instance)
+        return Response(
+            response_serializer.data, 
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
