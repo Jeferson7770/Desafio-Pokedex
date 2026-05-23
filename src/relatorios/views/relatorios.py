@@ -29,19 +29,23 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
         """
         Sobrescreve o list tradicional para retornar o payload único do relatório 
         com base nos filtros de ano e mês (?year=2026&month=05).
+        Retorna status 200 mesmo se não houver dados no banco para o período.
         """
         firm = self._get_user_firm(request.user)
         
         now = timezone.now()
-        year = request.query_params.get('year', str(now.year))
-        month = request.query_params.get('month', str(now.month))
+        year = int(request.query_params.get('year', now.year))
+        month = int(request.query_params.get('month', now.month))
 
         try:
             report_instance = self.get_queryset().get(firm=firm, year=year, month=month)
         except FinancialReportSummary.DoesNotExist:
-            return Response(
-                {"detail": f"Nenhum relatório consolidado encontrado para o período {month}/{year}."},
-                status=status.HTTP_404_NOT_FOUND
+            report_instance = FinancialReportSummary(
+                firm=firm,
+                year=year,
+                month=month,
+                total_revenue=0.00,
+                total_expense=0.00
             )
 
         serializer = self.get_serializer(report_instance)
