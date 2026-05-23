@@ -11,7 +11,12 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
     queryset = FinancialReportSummary.objects.all()
 
     def get_queryset(self):
-        return self.queryset.filter(firm__users=self.request.user)
+        user = self.request.user
+        
+        if hasattr(user, 'firm') and user.firm:
+            return self.queryset.filter(firm=user.firm)
+            
+        return self.queryset.none()
 
     def _resolve_date_filters(self, request) -> models.Q:
         period = request.query_params.get('period', 'semester')
