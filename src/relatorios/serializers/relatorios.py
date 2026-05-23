@@ -1,3 +1,4 @@
+from fincecore.src.relatorios.models.relatorios import FinancialReportSummary
 from rest_framework import serializers
 from ..services.cashflow import CashFlowEngine
 
@@ -12,3 +13,7 @@ class FinancialReportDashboardSerializer(serializers.ModelSerializer):
         report_payload = engine.generate_full_report()
         
         return report_payload.to_dict()
+
+    class Meta:
+        model = FinancialReportSummary
+        fields = '__all__'
