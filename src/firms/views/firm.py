@@ -29,9 +29,9 @@ class FirmViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def add_member(self, request, pk=None):
         serializer = FirmMemberSerializer(data=request.data)
-
         serializer.is_valid(raise_exception=True)
-
-        serializer.save(firm_id=pk)
-
-        return Response(serializer.data)
+        
+        member = serializer.save(firm_id=pk)
+        
+        response_serializer = FirmMemberSerializer(member)
+        return Response(response_serializer.data, status=201)
