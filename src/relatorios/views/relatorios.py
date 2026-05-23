@@ -9,6 +9,7 @@ from ..serializers.relatorios import FinancialReportDashboardSerializer
 class FinancialReportViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = FinancialReportSummary.objects.all()
+    serializer_class = FinancialReportDashboardSerializer
 
     def get_queryset(self):
         user = self.request.user
