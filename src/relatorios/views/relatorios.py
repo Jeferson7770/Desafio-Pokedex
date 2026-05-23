@@ -1,4 +1,3 @@
-# src/relatorios/views/relatorios.py
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -27,14 +26,15 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
         filters = self._resolve_date_filters(request)
         queryset = self.get_queryset().filter(filters)
 
-        if not queryset.exists():
-            return Response(
-                {"detail": "Nenhum dado processado para este intervalo."}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def _resolve_date_filters(self, request) -> models.Q:
         period = request.query_params.get('period', 'semester')
