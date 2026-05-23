@@ -62,8 +62,12 @@ class CashFlowEngine:
         7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
     }
 
-    def __init__(self, queryset: QuerySet):
-        self.queryset = queryset
+    def __init__(self, queryset: Any):
+        if hasattr(queryset, "pk") and not isinstance(queryset, QuerySet):
+            self.queryset = queryset.__class__.objects.filter(pk=queryset.pk)
+        else:
+            self.queryset = queryset
+            
         self.aggregates = self._calculate_base_aggregates()
 
     def _calculate_base_aggregates(self) -> Dict[str, Any]:
