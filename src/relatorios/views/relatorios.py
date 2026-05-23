@@ -36,6 +36,16 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+    def perform_create(self, serializer):
+        firm = self.request.user.firm
+        
+        if serializer.is_bulk:
+            for item in serializer.validated_data:
+                item['firm'] = firm
+            serializer.save()
+        else:
+            serializer.save(firm=firm)
+
     def _resolve_date_filters(self, request) -> models.Q:
         period = request.query_params.get('period', 'semester')
         start_date_param = request.query_params.get('start_date')

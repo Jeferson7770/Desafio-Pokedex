@@ -11,6 +11,7 @@ class FinancialReportDashboardSerializer(serializers.ModelSerializer):
     class Meta:
         model = FinancialReportSummary
         fields = '__all__'
+        read_only_fields = ['firm']
     
     def to_representation(self, instance):
         engine = CashFlowEngine(instance)
