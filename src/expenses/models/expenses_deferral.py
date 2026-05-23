@@ -2,7 +2,7 @@ from django.db import models
 from .expenses import ParcelaDespesa
 
 class ExpenseDeferral(models.Model):
-    installment = models.ForeignKey(ParcelaDespesa, on_delete=models.CASCADE, related_name="deferrals")
+    installment = models.ForeignKey(ParcelaDespesa, on_delete=models.CASCADE, related_name="deferrals", null=True, blank=True)
     original_date = models.DateField()
     new_date = models.DateField()
     penalty_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
