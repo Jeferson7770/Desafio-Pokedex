@@ -39,4 +39,7 @@ urlpatterns = [
     path('laywer-profile/disconnect-device/<int:device_pk>/', LawyerProfileViewSet.as_view({
         'post': 'disconnect_device'
     })),
+    path('laywer-profile/disconnect-all-devices/', LawyerProfileViewSet.as_view({
+        'post': 'disconnect_all_devices'
+    })),
 ]
