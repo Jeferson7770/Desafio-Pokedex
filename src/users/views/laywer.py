@@ -114,3 +114,35 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
             {"detail": "Todos os outros dispositivos foram desconectados com sucesso."},
             status=status.HTTP_200_OK
         )
+
+    @action(detail=False, methods=["delete"], url_path="delete-account")
+    def delete_account(self, request):
+        user = request.user
+        password = request.data.get("password")
+
+        if not password:
+            raise ValidationError({"password": ["A senha é obrigatória para confirmar a exclusão da conta."]})
+
+        if not user.check_password(password):
+            return Response(
+                {"password": ["Senha incorreta. A conta não foi excluída."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        memberships = user.firm_memberships.all()
+        firms_to_check = [m.firm for m in memberships]
+
+        tokens = OutstandingToken.objects.filter(user=user)
+        for token in tokens:
+            BlacklistedToken.objects.get_or_create(token=token)
+
+        user.delete()
+
+        for firm in firms_to_check:
+            if not firm.members.exists():
+                firm.delete()
+
+        return Response(
+            {"detail": "Sua conta e todos os dados associados foram excluídos permanentemente do nosso sistema."},
+            status=status.HTTP_200_OK
+        )

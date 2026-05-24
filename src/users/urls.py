@@ -42,4 +42,7 @@ urlpatterns = [
     path('laywer-profile/disconnect-all-devices/', LawyerProfileViewSet.as_view({
         'post': 'disconnect_all_devices'
     })),
+    path('laywer-profile/delete-account/', LawyerProfileViewSet.as_view({
+        'post': 'delete_account'
+    })),
 ]
