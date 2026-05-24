@@ -54,6 +54,13 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
 
         user.set_password(new_password)
         user.save()
+
+        tokens = OutstandingToken.objects.filter(user=user)
+        for token in tokens:
+            BlacklistedToken.objects.get_or_create(token=token)
+        
+        UserDevice.objects.filter(user=user).delete()
+
         refresh = RefreshToken.for_user(user)
 
         return Response(
@@ -83,5 +90,27 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
 
         return Response(
             {"message": f"O dispositivo '{device.device_name}' foi desconectado com sucesso!"},
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=False, methods=["post"], url_path="disconnect-all-devices")
+    def disconnect_all_devices(self, request):
+        user = request.user
+        
+        current_token_jti = request.auth.get("jti") if request.auth else None
+
+        tokens = OutstandingToken.objects.filter(user=user)
+        for token in tokens:
+            if current_token_jti and token.jti == current_token_jti:
+                continue
+            BlacklistedToken.objects.get_or_create(token=token)
+
+        if current_token_jti:
+            UserDevice.objects.filter(user=user).exclude(refresh_token_id=current_token_jti).delete()
+        else:
+            UserDevice.objects.filter(user=user).delete()
+
+        return Response(
+            {"detail": "Todos os outros dispositivos foram desconectados com sucesso."},
             status=status.HTTP_200_OK
         )
