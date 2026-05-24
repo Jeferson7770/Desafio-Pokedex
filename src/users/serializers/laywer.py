@@ -1,9 +1,18 @@
 from rest_framework import serializers
 from ..models.laywer import LawyerProfile
+from ..models.device import UserDevice
+
+
+class UserDeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserDevice
+        fields = ["id", "device_name", "browser", "ip_address", "last_login"]
 
 
 class LawyerProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", read_only=True)
+    
+    devices = UserDeviceSerializer(source="user.devices", many=True, read_only=True)
 
     class Meta:
         model = LawyerProfile
@@ -34,9 +43,10 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
             "goal_type",
             "financial_goal",
             "onboarding_completed",
+            "devices",
             "created_at",
         ]
-        read_only_fields = ["created_at", "has_bank_connected", "email"]
+        read_only_fields = ["created_at", "has_bank_connected", "email", "devices"]
 
     def validate(self, attrs):
         request = self.context.get("request")
