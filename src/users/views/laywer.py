@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from ..models.laywer import LawyerProfile
 from ..serializers.laywer import LawyerProfileSerializer
@@ -34,10 +35,6 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="change-password")
     def change_password(self, request):
-        """
-        Rota interna para o advogado alterar sua própria senha estando logado.
-        POST /api/auth/laywer-profile/change-password/
-        """
         user = request.user
         current_password = request.data.get("current_password")
         new_password = request.data.get("new_password")
@@ -55,9 +52,13 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
 
         user.set_password(new_password)
         user.save()
+        refresh = RefreshToken.for_user(user)
 
-        
         return Response(
-            {"message": "Senha alterada com sucesso!"},
+            {
+                "message": "Senha alterada com sucesso! Todos os outros dispositivos foram deslogados.",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            },
             status=status.HTTP_200_OK
         )
