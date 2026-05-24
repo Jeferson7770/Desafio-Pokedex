@@ -3,9 +3,12 @@ from ..models.laywer import LawyerProfile
 
 
 class LawyerProfileSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(source="user.email", read_only=True)
+
     class Meta:
         model = LawyerProfile
         fields = [
+            "email",
             "full_name",
             "phone",
             "oab_number",
@@ -33,7 +36,7 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
             "onboarding_completed",
             "created_at",
         ]
-        read_only_fields = ["created_at", "has_bank_connected"]
+        read_only_fields = ["created_at", "has_bank_connected", "email"]
 
     def validate(self, attrs):
         request = self.context.get("request")
