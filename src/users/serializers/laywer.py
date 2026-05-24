@@ -3,7 +3,21 @@ from ..models.laywer import LawyerProfile
 from ..models.device import UserDevice
 
 from .billing import SubscriptionSerializer 
-from .notifications import NotificationSettingSerializer
+from .notifications import NotificationSettingSerializer 
+
+class OfficeProfileSerializer(serializers.Serializer):
+    office_name = serializers.SerializerMethodField()
+    cnpj_or_cpf = serializers.CharField(source="cpf")
+    contact_email = serializers.SerializerMethodField()
+    tax_regime_display = serializers.CharField(source="get_tax_regime_display", read_only=True)
+    tax_regime = serializers.CharField()
+
+    def get_office_name(self, obj) -> str:
+        membership = obj.user.firm_memberships.select_related('firm').first()
+        return membership.firm.name if membership else ""
+
+    def get_contact_email(self, obj) -> str:
+        return obj.user.email
 
 
 class UserDeviceSerializer(serializers.ModelSerializer):
@@ -16,8 +30,9 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", read_only=True)
     devices = UserDeviceSerializer(source="user.devices", many=True, read_only=True)
     billing = SubscriptionSerializer(source="user.subscription", read_only=True, allow_null=True)
-    
     notifications = NotificationSettingSerializer(source="user.notification_settings", read_only=True, allow_null=True)
+    
+    office_profile = serializers.SerializerMethodField()
 
     class Meta:
         model = LawyerProfile
@@ -51,9 +66,13 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
             "devices",
             "billing",
             "notifications",
+            "office_profile",
             "created_at",
         ]
-        read_only_fields = ["created_at", "has_bank_connected", "email", "devices", "billing", "notifications"]
+        read_only_fields = ["created_at", "has_bank_connected", "email", "devices", "billing", "notifications", "office_profile"]
+
+    def get_office_profile(self, obj):
+        return OfficeProfileSerializer(obj).data
 
     def validate(self, attrs):
         request = self.context.get("request")
