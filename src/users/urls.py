@@ -1,10 +1,8 @@
 from django.urls import path
-
 from ..users.views.laywer import LawyerProfileViewSet
 from .views.register import RegisterView
 from .views.login import LoginView
 from .views.logout import LogoutView
-from .views.reset_password import RequestPasswordResetView, ConfirmPasswordResetView
 
 urlpatterns = [
     path('register/', RegisterView.as_view()),
@@ -19,6 +17,7 @@ urlpatterns = [
         'delete': 'destroy'
     })),
     
-    path('password-reset/', RequestPasswordResetView.as_view()),
-    path('password-reset-confirm/', ConfirmPasswordResetView.as_view()),
+    path('laywer-profile/change-password/', LawyerProfileViewSet.as_view({
+        'post': 'change_password'
+    })),
 ]
