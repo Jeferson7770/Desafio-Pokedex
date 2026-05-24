@@ -1,4 +1,6 @@
 from django.urls import path
+
+from .views.billing import SubscriptionViewSet
 from ..users.views.laywer import LawyerProfileViewSet
 from .views.register import RegisterView
 from .views.login import LoginView
@@ -19,5 +21,16 @@ urlpatterns = [
     
     path('laywer-profile/change-password/', LawyerProfileViewSet.as_view({
         'post': 'change_password'
+    })),
+
+    path('billing/subscription/', SubscriptionViewSet.as_view({
+        'get': 'list'
+    })),
+    
+    path('billing/subscription/upgrade/', SubscriptionViewSet.as_view({
+        'post': 'prepare_upgrade'
+    })),
+    path('billing/subscription/cancel/', SubscriptionViewSet.as_view({
+        'post': 'prepare_cancel'
     })),
 ]
