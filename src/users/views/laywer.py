@@ -5,8 +5,10 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 
 from ..models.laywer import LawyerProfile
+from ..models.device import UserDevice
 from ..serializers.laywer import LawyerProfileSerializer
 
 
@@ -60,5 +62,26 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
             },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=False, methods=["post"], url_path="disconnect-device/(?P<device_pk>[^/.]+)")
+    def disconnect_device(self, request, device_pk=None):
+        try:
+            device = UserDevice.objects.get(pk=device_pk, user=request.user)
+        except UserDevice.DoesNotExist:
+            raise ValidationError({"detail": "Dispositivo não encontrado ou já desconectado."})
+
+        if device.refresh_token_id:
+            try:
+                token = OutstandingToken.objects.get(jti=device.refresh_token_id)
+                BlacklistedToken.objects.get_or_create(token=token)
+            except OutstandingToken.DoesNotExist:
+                pass
+
+        device.delete()
+
+        return Response(
+            {"message": f"O dispositivo '{device.device_name}' foi desconectado com sucesso!"},
             status=status.HTTP_200_OK
         )

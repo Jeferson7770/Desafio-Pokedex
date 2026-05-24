@@ -36,4 +36,7 @@ urlpatterns = [
         'put': 'update',
         'patch': 'partial_update'
     })),
+    path('laywer-profile/disconnect-device/<int:device_pk>/', LawyerProfileViewSet.as_view({
+        'post': 'disconnect_device'
+    })),
 ]
