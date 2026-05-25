@@ -63,6 +63,7 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
             "goal_type",
             "financial_goal",
             "onboarding_completed",
+            "is_active",
             "devices",
             "billing",
             "notifications",
