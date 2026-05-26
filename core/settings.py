@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "src.firms",
     "src.integrations",
     "src.dinheiro",
+    "src.prolabore",
     "src.users",
     "src.honorarios",
     "src.suggestions",
