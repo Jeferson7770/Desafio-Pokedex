@@ -5,10 +5,10 @@ from django.db import transaction as db_transaction
 
 from ..models.prolabore import ProLaboreSimulation
 from ..serializers.prolabore import (
-    ProLaboreInputSerializer, 
     ProLaboreCalculoSerializer, 
     ProLaboreSimulationSerializer
 )
+from ...dinheiro.models.dinheiro import Transaction
 from ..utils.calculo import calcular_pro_labore_escritorio
 
 
@@ -20,28 +20,28 @@ class ProLaboreViewSet(viewsets.ModelViewSet):
         return ProLaboreSimulation.objects.filter(user=self.request.user)
 
     def create(self, request, *args, **kwargs):
-        input_serializer = ProLaboreInputSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
-        estagio = input_serializer.validated_data["perfil_estagio"]
-
         user = request.user
         profile = getattr(user, "profile", None)
+        
         if not profile:
             return Response(
                 {"detail": "Perfil de advogado não encontrado para realizar o cálculo."}, 
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Dispara o cálculo usando as movimentações totais históricas da firma do usuário
+        all_transactions = Transaction.objects.all()
+        
         calculos_objeto = calcular_pro_labore_escritorio(
             user=user, 
-            estagio=estagio, 
+            transactions_queryset=all_transactions, 
             tax_regime=profile.tax_regime
         )
 
         with db_transaction.atomic():
             ProLaboreSimulation.objects.create(
                 user=user,
-                perfil_estagio=estagio,
+                perfil_estagio=calculos_objeto["nivel_recomendado"].upper(),
                 base_disponivel=calculos_objeto["base_disponivel"],
                 coef_variacao=calculos_objeto["coef_variacao"],
                 meses_analisados=calculos_objeto["meses_analisados"],

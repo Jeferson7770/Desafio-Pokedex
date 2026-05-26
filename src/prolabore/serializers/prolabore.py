@@ -1,15 +1,6 @@
 from rest_framework import serializers
 from ..models.prolabore import ProLaboreSimulation
 
-class ProLaboreInputSerializer(serializers.Serializer):
-    PERFIL_CHOICES = [
-        ("INICIANTE", "Iniciante"),
-        ("INTERMEDIARIO", "Intermediário"),
-        ("AVANCADO", "Avançado"),
-    ]
-    perfil_estagio = serializers.ChoiceField(choices=PERFIL_CHOICES, default="INTERMEDIARIO")
-
-
 class CenarioProLaboreSerializer(serializers.Serializer):
     pro_labore_bruto = serializers.FloatField()
     inss_socio = serializers.FloatField()
