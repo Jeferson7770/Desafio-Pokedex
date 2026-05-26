@@ -145,9 +145,9 @@ class ProLaboreServicePipeline:
         custo_fixo_medio = float(custo_tot) / n_meses
 
         calculadora = ProLaboreCalculator(receitas_lista, custo_fixo_medio, perfil, n_meses, rec_padrao)
-        estrategia_fiscal = TaxationFactory.obtain_strategy(tax_regime)
+        estrategia_fiscal = TaxationFactory.obter_estrategia(tax_regime)
 
-        bruto_cons, bruto_equi, bruto_max = calculadora.obtain_gross_values_scenarios()
+        bruto_cons, bruto_equi, bruto_max = calculadora.obter_valores_brutos_scenarios()
 
         return {
             "base_disponivel": round(calculadora.base_disponivel, 2),
