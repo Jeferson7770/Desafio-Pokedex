@@ -29,7 +29,6 @@ class ProLaboreViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Dispara o cálculo usando as movimentações totais históricas da firma do usuário
         all_transactions = Transaction.objects.all()
         
         calculos_objeto = calcular_pro_labore_escritorio(
