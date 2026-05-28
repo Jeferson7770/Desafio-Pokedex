@@ -1,4 +1,3 @@
-# src/expenses/utils/motor_prioridade.py
 from decimal import Decimal
 from django.db import transaction as db_transaction
 import datetime
@@ -20,10 +19,7 @@ class MotorPrioridadeEngine:
         saldos = BankAccount.objects.filter(firm=self.firm).values_list('current_balance', flat=True)
         return sum(saldos) or Decimal("0.00")
 
-    def calcular_e_salvar(self, ano, mes):
-        saldo_disponivel = self.obter_saldo_consolidado()
-        reference_date = datetime.date(ano, mes, 1)
-
+    def _obter_parcelas_ordenadas(self, ano, mes):
         parcelas = ParcelaDespesa.objects.filter(
             expense__firm=self.firm,
             is_paid=False,
@@ -38,7 +34,50 @@ class MotorPrioridadeEngine:
             juro_diario = (p.amount * (taxa_mensal / Decimal("100.00"))) / Decimal("30")
             return (peso_prioridade, -juro_diario, p.due_date)
 
-        parcelas_ordenadas = sorted(parcelas, key=criterio_ordenacao)
+        return sorted(parcelas, key=criterio_ordenacao)
+
+    def calcular_dinamico(self, ano, mes):
+        """Apenas calcula e monta a estrutura de dicionário para o GET, sem salvar."""
+        saldo_disponivel = self.obter_saldo_consolidado()
+        parcelas_ordenadas = self._obter_parcelas_ordenadas(ano, mes)
+        saldo_restante = saldo_disponivel
+
+        recomendados = []
+        nao_cobertos = []
+
+        for parcela in parcelas_ordenadas:
+            item_data = {
+                "parcela": parcela.id,
+                "expense_title": parcela.expense.title,
+                "category": parcela.expense.category,
+                "priority": parcela.expense.priority,
+                "due_date": parcela.due_date.strftime("%Y-%m-%d"),
+                "amount_snapshot": float(parcela.amount),
+                "late_interest_snapshot": float(parcela.late_interest_cost)
+            }
+
+            if saldo_restante >= parcela.amount:
+                item_data["status_recomendacao"] = "RECOMENDADO"
+                saldo_restante -= parcela.amount
+                recomendados.append(item_data)
+            else:
+                item_data["status_recomendacao"] = "NAO_COBERTO"
+                nao_cobertos.append(item_data)
+
+        return {
+            "id": None,
+            "reference_period": f"{ano}-{str(mes).zfill(2)}",
+            "saldo_total_disponivel": float(saldo_disponivel),
+            "saldo_restante_pos_pagamentos": float(saldo_restante),
+            "pagamentos_recomendados": recomendados,
+            "pagamentos_nao_cobertos": nao_cobertos
+        }
+
+    def calcular_e_salvar(self, ano, mes):
+        """Calcula e efetivamente grava os dados na tabela ao disparar o POST."""
+        saldo_disponivel = self.obter_saldo_consolidado()
+        reference_date = datetime.date(ano, mes, 1)
+        parcelas_ordenadas = self._obter_parcelas_ordenadas(ano, mes)
         saldo_restante = saldo_disponivel
 
         with db_transaction.atomic():
