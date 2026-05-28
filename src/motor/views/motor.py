@@ -2,10 +2,10 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-import datetime
+from django.utils import timezone
 
 from ..models.motor import SimulacaoPrioridade
-from ..serializers.motor import SimulacaoPrioridadeSerializer, SalvarConfiguracaoQuerySerializer
+from ..serializers.motor import SimulacaoPrioridadeSerializer
 from ..utils.calculo_prioridade import MotorPrioridadeEngine
 
 class MotorPrioridadeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -18,37 +18,37 @@ class MotorPrioridadeViewSet(viewsets.ReadOnlyModelViewSet):
             raise ValidationError("O usuário não possui empresa vinculada.")
         return membership.firm
 
-    def get_queryset(self):
-        firm = self._get_user_firm(self.request.user)
-        queryset = SimulacaoPrioridade.objects.filter(firm=firm).prefetch_related('items__parcela__expense')
+    def list(self, request, *args, **kwargs):
+        """
+        GET /api/motor/
+        Executa o cálculo do motor em tempo real com base no mês e ano atuais
+        e entrega diretamente para o frontend renderizar.
+        """
+        firm = self._get_user_firm(request.user)
         
-        year = self.request.query_params.get("year")
-        month = self.request.query_params.get("month")
+        hoje = timezone.localdate()
+        ano = hoje.year
+        mes = hoje.month
+
+        engine = MotorPrioridadeEngine(firm=firm)
         
-        if year and month:
-            try:
-                queryset = queryset.filter(
-                    reference_date__year=int(year),
-                    reference_date__month=int(month)
-                )
-            except ValueError:
-                pass
-                
-        return queryset
+        dados_calculados = engine.calcular_dinamico(ano=ano, mes=mes)
+        
+        return Response(dados_calculados, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"], url_path="salvar-configuracao")
     def salvar_configuracao(self, request):
         """
-        Executa o motor de prioridade, salva o estado atualizado no banco de dados 
-        e retorna a configuração limpa diretamente pro Frontend.
+        POST /api/motor/salvar-configuracao/ (Sem body)
+        Executa o motor, persiste a foto atual do mês vigente no banco de dados
+        e retorna os dados persistidos.
         """
-        serializer = SalvarConfiguracaoQuerySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        ano = serializer.validated_data["year"]
-        mes = serializer.validated_data["month"]
         firm = self._get_user_firm(request.user)
         
+        hoje = timezone.localdate()
+        ano = hoje.year
+        mes = hoje.month
+
         engine = MotorPrioridadeEngine(firm=firm)
         simulacao_persistida = engine.calcular_e_salvar(ano=ano, mes=mes)
         
