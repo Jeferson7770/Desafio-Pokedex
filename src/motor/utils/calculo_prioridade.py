@@ -8,6 +8,8 @@ from ..models.motor import SimulacaoPrioridade, ItemSimulacaoPrioridade
 class MotorPrioridadeEngine:
     PRIORITY_WEIGHTS = {
         "LEGAL": 1,
+        "CRITICO": 1,
+        "LEGAL / CRÍTICO": 1,
         "OPERACIONAL": 2,
         "OPCIONAL": 3,
     }
@@ -29,9 +31,18 @@ class MotorPrioridadeEngine:
         ).select_related('expense')
 
         def criterio_ordenacao(p):
-            peso_prioridade = self.PRIORITY_WEIGHTS.get(p.expense.priority, 99)
+            prioridade_crua = str(p.expense.priority).strip().upper()
+            
+            if "LEGAL" in prioridade_crua or "CRÍTICO" in prioridade_crua or "CRITICO" in prioridade_crua:
+                peso_prioridade = 1
+            elif "OPERACIONAL" in prioridade_crua:
+                peso_prioridade = 2
+            else:
+                peso_prioridade = 3
+
             taxa_mensal = p.expense.interest_rate_month or Decimal("0.00")
             juro_diario = (p.amount * (taxa_mensal / Decimal("100.00"))) / Decimal("30")
+            
             return (peso_prioridade, -juro_diario, p.due_date)
 
         return sorted(parcelas, key=criterio_ordenacao)
