@@ -37,7 +37,6 @@ class MotorPrioridadeViewSet(viewsets.ReadOnlyModelViewSet):
         firm = self._get_user_firm(request.user)
         hoje = timezone.localdate()
         
-        # Junta os dois arrays que o front enviou mantendo a ordem sequencial de prioridade dada na tela
         recomendados = request.data.get("pagamentos_recomendados", [])
         nao_cobertos = request.data.get("pagamentos_nao_cobertos", [])
         itens_da_tela = recomendados + nao_cobertos
