@@ -27,11 +27,12 @@ class ItemSimulacaoPrioridade(models.Model):
 
     simulacao = models.ForeignKey(SimulacaoPrioridade, on_delete=models.CASCADE, related_name="items")
     parcela = models.ForeignKey("expenses.ParcelaDespesa", on_delete=models.CASCADE, related_name="simulation_appearances")
-    
     status_recomendacao = models.CharField(max_length=20, choices=StatusRecomendacao.choices)
-    
     amount_snapshot = models.DecimalField(max_digits=12, decimal_places=2)
     late_interest_snapshot = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    
+    ordem = models.PositiveIntegerField(default=0, help_text="Posição do card na tela")
 
     class Meta:
         unique_together = ("simulacao", "parcela")
+        ordering = ["ordem"]
