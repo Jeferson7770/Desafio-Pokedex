@@ -37,9 +37,7 @@ class MotorPrioridadeEngine:
         return sorted(parcelas, key=criterio_ordenacao)
 
     def calcular_dinamico(self, ano, mes):
-        """Retorna os dados respeitando a ordem gravada no banco (se houver) ou o cálculo padrão."""
         reference_date = datetime.date(ano, mes, 1)
-        
         simulacao_salva = SimulacaoPrioridade.objects.filter(
             firm=self.firm, reference_date=reference_date
         ).prefetch_related('items__parcela__expense').first()
@@ -48,7 +46,7 @@ class MotorPrioridadeEngine:
             recomendados = []
             nao_cobertos = []
             
-            for item in simulacao_salva.items.all():
+            for item in simulacao_salva.items.all().order_by('ordem'):
                 item_data = {
                     "parcela": item.parcela.id,
                     "expense_title": item.parcela.expense.title,
@@ -108,11 +106,10 @@ class MotorPrioridadeEngine:
             "pagamentos_nao_cobertos": nao_cobertos
         }
 
-    def calcular_e_salvar(self, ano, mes):
-        """Calcula e efetivamente grava os dados salvando a ordem sequencial."""
+    def salvar_configuracao_da_tela(self, ano, mes, itens_da_tela):
+        """Salva respeitando a ordenação exata de 'itens_da_tela' enviada pelo Frontend."""
         saldo_disponivel = self.obter_saldo_consolidado()
         reference_date = datetime.date(ano, mes, 1)
-        parcelas_ordenadas = self._obter_parcelas_ordenadas_padrao(ano, mes)
         saldo_restante = saldo_disponivel
 
         with db_transaction.atomic():
@@ -125,12 +122,19 @@ class MotorPrioridadeEngine:
                 saldo_restante_pos_pagamentos=saldo_disponivel
             )
 
-            for index, parcela in enumerate(parcelas_ordenadas):
-                if saldo_restante >= parcela.amount:
-                    status_rec = ItemSimulacaoPrioridade.StatusRecomendacao.RECOMENDADO
+            for index, item_front in enumerate(itens_da_tela):
+                parcela_id = item_front.get("parcela")
+                status_rec = item_front.get("status_recomendacao", "RECOMENDADO")
+                
+                try:
+                    parcela = ParcelaDespesa.objects.get(id=parcela_id, expense__firm=self.firm)
+                except ParcelaDespesa.DoesNotExist:
+                    continue
+
+                if status_rec == "RECOMENDADO" and saldo_restante >= parcela.amount:
                     saldo_restante -= parcela.amount
                 else:
-                    status_rec = ItemSimulacaoPrioridade.StatusRecomendacao.NAO_COBERTO
+                    status_rec = "NAO_COBERTO"
 
                 ItemSimulacaoPrioridade.objects.create(
                     simulacao=simulacao,

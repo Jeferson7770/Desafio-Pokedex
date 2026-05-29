@@ -19,38 +19,38 @@ class MotorPrioridadeViewSet(viewsets.ReadOnlyModelViewSet):
         return membership.firm
 
     def list(self, request, *args, **kwargs):
-        """
-        GET /api/motor/
-        Executa o cálculo do motor em tempo real com base no mês e ano atuais
-        e entrega diretamente para o frontend renderizar.
-        """
+        """GET /api/motor/ (Cálculo dinâmico padrão inicial)"""
         firm = self._get_user_firm(request.user)
-        
         hoje = timezone.localdate()
-        ano = hoje.year
-        mes = hoje.month
-
-        engine = MotorPrioridadeEngine(firm=firm)
         
-        dados_calculados = engine.calcular_dinamico(ano=ano, mes=mes)
+        engine = MotorPrioridadeEngine(firm=firm)
+        dados_calculados = engine.calcular_dinamico(ano=hoje.year, mes=hoje.month)
         
         return Response(dados_calculados, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"], url_path="salvar-configuracao")
     def salvar_configuracao(self, request):
         """
-        POST /api/motor/salvar-configuracao/ (Sem body)
-        Executa o motor, persiste a foto atual do mês vigente no banco de dados
-        e retorna os dados persistidos.
+        POST /api/motor/salvar-configuracao/
+        Lê o array ordenado enviado pelo frontend e salva no banco mantendo essa ordem exata.
         """
         firm = self._get_user_firm(request.user)
-        
         hoje = timezone.localdate()
-        ano = hoje.year
-        mes = hoje.month
+        
+        # Junta os dois arrays que o front enviou mantendo a ordem sequencial de prioridade dada na tela
+        recomendados = request.data.get("pagamentos_recomendados", [])
+        nao_cobertos = request.data.get("pagamentos_nao_cobertos", [])
+        itens_da_tela = recomendados + nao_cobertos
+
+        if not itens_da_tela:
+            raise ValidationError("O payload enviado está vazio ou não possui a chave 'pagamentos_recomendados'.")
 
         engine = MotorPrioridadeEngine(firm=firm)
-        simulacao_persistida = engine.calcular_e_salvar(ano=ano, mes=mes)
+        simulacao_persistida = engine.salvar_configuracao_da_tela(
+            ano=hoje.year, 
+            mes=hoje.month, 
+            itens_da_tela=itens_da_tela
+        )
         
         response_serializer = self.get_serializer(simulacao_persistida)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
