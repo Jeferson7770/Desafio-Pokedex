@@ -10,6 +10,7 @@ from decimal import Decimal
 import datetime
 import calendar
 import threading
+import re
 
 from ..models.dinheiro import BankAccount, Transaction
 from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
@@ -90,11 +91,19 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     
                     nome_da_conta_pluggy = conta.get("name") or ""
                     
-                    nome_instituicao = (
-                        conta.get("institution", {}).get("name") 
-                        or conta.get("providerName")
-                    )
+                    nome_original_pluggy = (
+                        conta.get("institution", {}).get("name") if conta.get("institution") else None
+                    ) or conta.get("providerName") or "Banco Conectado"
                     
+                    if "Banco Conectado" not in nome_original_pluggy and nome_original_pluggy != "Banco Conectado":
+                        nome_com_prefixo = f"Banco Conectado - {nome_original_pluggy}"
+                    else:
+                        nome_com_prefixo = nome_original_pluggy
+
+                    nome_instituicao = re.sub(r"^Banco Conectado\s*(-\s*)?", "", nome_com_prefixo).strip()
+                    if not nome_instituicao:
+                        nome_instituicao = "Banco Conectado"
+
                     if nome_da_conta_pluggy:
                         nome_exibicao = f"{nome_instituicao} - {nome_da_conta_pluggy}"
                     else:
