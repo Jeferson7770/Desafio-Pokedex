@@ -56,15 +56,29 @@ class LoginView(APIView):
 
             jti = refresh.get('jti')
 
-            UserDevice.objects.update_or_create(
-                user=user,
-                device_name=device_name,
-                defaults={
-                    "browser": browser,
-                    "ip_address": ip_address,
-                    "refresh_token_id": jti
-                }
-            )
+            device_uuid = request.data.get("device_uuid")
+
+            if device_uuid:
+                UserDevice.objects.update_or_create(
+                    user=user,
+                    device_uuid=device_uuid,
+                    defaults={
+                        "device_name": device_name,
+                        "browser": browser,
+                        "ip_address": ip_address,
+                        "refresh_token_id": jti
+                    }
+                )
+            else:
+                UserDevice.objects.update_or_create(
+                    user=user,
+                    device_name=device_name,
+                    browser=browser,
+                    defaults={
+                        "ip_address": ip_address,
+                        "refresh_token_id": jti
+                    }
+                )
 
             return Response({
                 "user": {
