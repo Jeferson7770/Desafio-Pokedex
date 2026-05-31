@@ -13,6 +13,7 @@ import threading
 import re
 
 from ..models.dinheiro import BankAccount, Transaction
+from ..models.honorarios import Honorario
 from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
 from ..services.pluggy import PluggyService  
 
@@ -164,6 +165,36 @@ class BankAccountViewSet(viewsets.ModelViewSet):
         if not contas_open_finance.exists():
             return Response({"message": "Nenhuma conta vinculada ao Open Finance para atualizar."}, status=status.HTTP_200_OK)
         return Response({"message": "Saldos sincronizados em segundo plano automaticamente."}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="pluggy/saldo-bancario-total")
+    def saldo_bancario_total(self, request):
+        firm = self._get_user_firm()
+        saldo_total = BankAccount.objects.filter(firm=firm).aggregate(total=Sum('current_balance'))['total'] or Decimal('0.00')
+        return Response({
+            "total_bank_balance": float(saldo_total)
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="pluggy/disponibilidade-financeira")
+    def disponibilidade_financeira(self, request):
+        firm = self._get_user_firm()
+        hoje = datetime.date.today()
+        
+        saldo_bancario = BankAccount.objects.filter(firm=firm).aggregate(total=Sum('current_balance'))['total'] or Decimal('0.00')
+        
+        honorarios_recebidos_mes = Honorario.objects.filter(
+            firm=firm,
+            status=Honorario.Status.RECEBIDO,
+            date__year=hoje.year,
+            date__month=hoje.month
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        total_disponivel = saldo_bancario + honorarios_recebidos_mes
+        
+        return Response({
+            "total_bank_balance": float(saldo_bancario),
+            "received_fees_current_month": float(honorarios_recebidos_mes),
+            "total_financial_availability": float(total_disponivel)
+        }, status=status.HTTP_200_OK)
 
 class TransactionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
