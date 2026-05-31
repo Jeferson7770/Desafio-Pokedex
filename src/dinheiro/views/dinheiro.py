@@ -28,7 +28,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             raise ValidationError({"detail": "O usuário precisa estar vinculado a um escritório para esta operação."})
         return membership.firm
 
-    def _processar_extrato_background(self, contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes):
+    def _processar_extrato_background(self, contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes, ano_atual, mes_atual):
         service = PluggyService()
         for bank_account, id_conta_pluggy in contas_para_extrato:
             try:
@@ -39,14 +39,17 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                 )
                 
                 for tx in transacoes_pluggy:
+                    raw_date = tx.get("date", "")[:10]
+                    tx_date = datetime.datetime.strptime(raw_date, "%Y-%m-%d").date()
+
+                    if tx_date.year != ano_atual or tx_date.month != mes_atual:
+                        continue
+
                     tx_id = tx.get("id")
                     tx_amount = abs(Decimal(str(tx.get("amount", 0))))
                     tx_description = tx.get("description", "Transação Open Finance")
                     tipo_tx = Transaction.TransactionType.OUTFLOW if tx.get("amount", 0) < 0 else Transaction.TransactionType.INFLOW
                     
-                    raw_date = tx.get("date", "")[:10]
-                    tx_date = datetime.datetime.strptime(raw_date, "%Y-%m-%d").date()
-
                     Transaction.objects.get_or_create(
                         external_transaction_id=tx_id,
                         defaults={
@@ -117,7 +120,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
             threading.Thread(
                 target=self._processar_extrato_background,
-                args=(contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes),
+                args=(contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes, hoje.year, hoje.month),
                 daemon=True
             ).start()
 
