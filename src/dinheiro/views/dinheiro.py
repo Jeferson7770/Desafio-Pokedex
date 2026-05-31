@@ -223,12 +223,13 @@ class TransactionViewSet(viewsets.ModelViewSet):
         
         disponibilidade_financeira = saldo_bancario_total + honorarios_recebidos_mes
         
-        transacoes_mes = queryset.filter(
+        saidas_mes = queryset.filter(
+            transaction_type=Transaction.TransactionType.OUTFLOW,
             date__year=hoje.year,
             date__month=hoje.month
         ).order_by("-amount")[:5]
         
-        top_transactions_serializer = self.get_serializer(transacoes_mes, many=True)
+        top_transactions_serializer = self.get_serializer(saidas_mes, many=True)
         
         return Response({
             "total_inflows": float(inflows),
