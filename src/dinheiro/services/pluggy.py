@@ -1,12 +1,12 @@
 import requests
-from django.conf import settings
+from decouple import config
 from django.utils import timezone
 
 class PluggyService:
     def __init__(self):
-        self.client_id = settings.config("PLUGGY_CLIENT_ID")
-        self.client_secret = settings.config("PLUGGY_CLIENT_SECRET")
-        self.base_url = settings.config("PLUGGY_API_URL", default="https://api.pluggy.ai")
+        self.client_id = config("PLUGGY_CLIENT_ID")
+        self.client_secret = config("PLUGGY_CLIENT_SECRET")
+        self.base_url = config("PLUGGY_API_URL", default="https://api.pluggy.ai")
 
     def _get_api_token(self):
         """Gera o token de autenticação da própria API da Pluggy"""
