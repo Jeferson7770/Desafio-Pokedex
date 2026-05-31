@@ -238,3 +238,15 @@ class TransactionViewSet(viewsets.ModelViewSet):
             "total_outflows": float(outflows),
             "net_cash_flow": float(inflows - outflows)
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="top-cinco-transacoes")
+    def top_cinco_transacoes_mes(self, request):
+        hoje = datetime.date.today()
+        
+        queryset = self.get_queryset().filter(
+            date__year=hoje.year,
+            date__month=hoje.month
+        ).order_by("-amount")[:5]
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
