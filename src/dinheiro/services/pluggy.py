@@ -1,6 +1,5 @@
 import requests
 from decouple import config
-from django.utils import timezone
 
 class PluggyService:
     def __init__(self):
@@ -31,17 +30,20 @@ class PluggyService:
         response.raise_for_status()
         return response.json()["results"]
 
-    def buscar_transacoes_da_conta(self, account_id):
-        """Busca o extrato de transações de uma conta específica"""
+    def buscar_transacoes_da_conta(self, account_id, from_date=None, to_date=None):
+        """Busca o extrato de transações filtrando por um intervalo de datas opcional"""
         api_token = self._get_api_token()
         url = f"{self.base_url}/transactions?accountId={account_id}"
+        
+        if from_date and to_date:
+            url += f"&fromDate={from_date}&toDate={to_date}"
+            
         headers = {"X-API-KEY": api_token}
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         return response.json()["results"]
 
     def atualizar_item(self, item_id):
-        """Força a Pluggy a se conectar no banco (ex: Mercado Pago) e buscar dados novos"""
         api_token = self._get_api_token()
         url = f"{self.base_url}/items/{item_id}"
         headers = {"X-API-KEY": api_token}

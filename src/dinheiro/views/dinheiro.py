@@ -8,6 +8,7 @@ from django.db import transaction as db_transaction
 from django.utils import timezone
 from decimal import Decimal
 import datetime
+import calendar
 
 from ..models.dinheiro import BankAccount, Transaction
 from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
@@ -26,22 +27,8 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             raise ValidationError({"detail": "O usuário precisa estar vinculado a um escritório para esta operação."})
         return membership.firm
 
-    @action(detail=False, methods=["post"], url_path="pluggy/connect-token")
-    def pluggy_connect_token(self, request):
-        self._get_user_firm()
-        try:
-            service = PluggyService()
-            token = service.gerar_connect_token()
-            return Response({"connect_token": token}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
     @action(detail=False, methods=["post"], url_path="pluggy/sincronizar")
     def pluggy_sincronizar(self, request):
-        """
-        Sincroniza Contas de forma rápida para evitar HTTP 502 (Timeout).
-        Salva saldos e processa transações de forma otimizada.
-        """
         firm = self._get_user_firm()
         item_id = request.data.get("item_id")
 
@@ -50,7 +37,6 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
         try:
             service = PluggyService()
-            
             service.atualizar_item(item_id)
             
             contas_pluggy = service.buscar_contas_do_item(item_id)
@@ -60,26 +46,44 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             with db_transaction.atomic():
                 for conta in contas_pluggy:
                     id_conta_pluggy = conta.get("id")
-                    nome_banco = conta.get("institution", {}).get("name", "Mercado Pago")
-                    saldo_atual = conta.get("balance", 0)
+                    
+                    nome_da_conta_pluggy = conta.get("name") or "Conta Open Finance"
+                    nome_instituicao = (
+                        conta.get("institution", {}).get("name") 
+                        or conta.get("providerName") 
+                        or "Banco Conectado"
+                    )
+                    
+                    saldo_atual = conta.get("balance")
+                    if saldo_atual is None:
+                        saldo_atual = conta.get("availableBalance", 0)
+                    
                     tipo_conta = conta.get("type", "BANK")
                     
                     bank_account, created = BankAccount.objects.update_or_create(
                         firm=firm,
                         external_account_id=id_conta_pluggy, 
                         defaults={
-                            "name": f"{nome_banco} - {tipo_conta.capitalize()}",
+                            "name": f"{nome_instituicao} - {nome_da_conta_pluggy}",
                             "current_balance": Decimal(str(saldo_atual)),
-                            "provider_name": nome_banco,
-                            "account_type": BankAccount.AccountType.CHECKING if tipo_conta == "BANK" else BankAccount.AccountType.INVESTMENT
+                            "provider_name": nome_instituicao,
+                            "account_type": BankAccount.AccountType.CHECKING if tipo_conta in ["BANK", "WALLET"] else BankAccount.AccountType.INVESTMENT
                         }
                     )
                     contas_sincronizadas.append(bank_account)
                     contas_para_extrato.append((bank_account, id_conta_pluggy))
 
+            hoje = datetime.date.today()
+            primeiro_dia_mes = hoje.replace(day=1).strftime("%Y-%m-%d")
+            ultimo_dia_do_mes = hoje.replace(day=calendar.monthrange(hoje.year, hoje.month)[1]).strftime("%Y-%m-%d")
+
             for bank_account, id_conta_pluggy in contas_para_extrato:
                 try:
-                    transacoes_pluggy = service.buscar_transacoes_da_conta(id_conta_pluggy)
+                    transacoes_pluggy = service.buscar_transacoes_da_conta(
+                        id_conta_pluggy, 
+                        from_date=primeiro_dia_mes, 
+                        to_date=ultimo_dia_do_mes
+                    )
                     
                     for tx in transacoes_pluggy:
                         tx_id = tx.get("id")
@@ -106,27 +110,29 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
             serializer = BankAccountSerializer(contas_sincronizadas, many=True)
             return Response({
-                "message": "Sincronização concluída.",
+                "message": "Sincronização concluída com sucesso para o mês atual.",
                 "accounts": serializer.data
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=["post"], url_path="pluggy/connect-token")
+    def pluggy_connect_token(self, request):
+        self._get_user_firm()
+        try:
+            service = PluggyService()
+            token = service.gerar_connect_token()
+            return Response({"connect_token": token}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=["post"], url_path="pluggy/atualizar-dashboard")
     def atualizar_saldos_dashboard(self, request):
-        """
-        🚀 SOLUÇÃO DO ERRO 1: Rota rápida chamada no carregamento da tela do Front.
-        Varre todas as contas Open Finance salvas do escritório e atualiza os saldos automaticamente.
-        """
         firm = self._get_user_firm()
         contas_open_finance = BankAccount.objects.filter(firm=firm, external_account_id__isnull=False)
-        
         if not contas_open_finance.exists():
             return Response({"message": "Nenhuma conta vinculada ao Open Finance para atualizar."}, status=status.HTTP_200_OK)
-
-        service = PluggyService()
-        
         return Response({"message": "Saldos sincronizados em segundo plano automaticamente."}, status=status.HTTP_200_OK)
 
 class TransactionViewSet(viewsets.ModelViewSet):
@@ -161,7 +167,6 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="cash-flow-summary")
     def cash_flow_summary(self, request):
-        """Retorna o total consolidado de entradas, saídas e o saldo líquido"""
         queryset = self.get_queryset()
         
         inflows = queryset.filter(transaction_type=Transaction.TransactionType.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
