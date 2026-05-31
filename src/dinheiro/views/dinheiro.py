@@ -10,7 +10,7 @@ from decimal import Decimal
 import datetime
 
 from ..models.dinheiro import BankAccount, Transaction
-from ..serializers.dinheiro import BankAccountSerializer
+from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
 from ..services.pluggy import PluggyService  
 
 class BankAccountViewSet(viewsets.ModelViewSet):
@@ -122,3 +122,47 @@ class BankAccountViewSet(viewsets.ModelViewSet):
         service = PluggyService()
         
         return Response({"message": "Saldos sincronizados em segundo plano automaticamente."}, status=status.HTTP_200_OK)
+
+class TransactionViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TransactionSerializer
+
+    def get_queryset(self):
+        return Transaction.objects.filter(account__firm__members__user=self.request.user)
+
+    def perform_create(self, serializer):
+        with db_transaction.atomic():
+            instance = serializer.save()
+            account = instance.account
+            
+            if instance.transaction_type == Transaction.TransactionType.INFLOW:
+                account.current_balance += instance.amount
+            else:
+                account.current_balance -= instance.amount
+            account.save()
+
+    def perform_destroy(self, instance):
+        with db_transaction.atomic():
+            account = instance.account
+            
+            if instance.transaction_type == Transaction.TransactionType.INFLOW:
+                account.current_balance -= instance.amount
+            else:
+                account.current_balance += instance.amount
+            account.save()
+            
+            instance.delete()
+
+    @action(detail=False, methods=["get"], url_path="cash-flow-summary")
+    def cash_flow_summary(self, request):
+        """Retorna o total consolidado de entradas, saídas e o saldo líquido"""
+        queryset = self.get_queryset()
+        
+        inflows = queryset.filter(transaction_type=Transaction.TransactionType.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        outflows = queryset.filter(transaction_type=Transaction.TransactionType.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        
+        return Response({
+            "total_inflows": float(inflows),
+            "total_outflows": float(outflows),
+            "net_cash_flow": float(inflows - outflows)
+        }, status=status.HTTP_200_OK)

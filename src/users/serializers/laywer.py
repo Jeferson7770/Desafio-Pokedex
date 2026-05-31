@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from ..models.laywer import LawyerProfile
 from ..models.device import UserDevice
+from ...dinheiro.models.dinheiro import BankAccount
 
 from .billing import SubscriptionSerializer 
 from .notifications import NotificationSettingSerializer 
@@ -32,6 +33,7 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
     billing = SubscriptionSerializer(source="user.subscription", read_only=True, allow_null=True)
     notifications = NotificationSettingSerializer(source="user.notification_settings", read_only=True, allow_null=True)
     
+    has_bank_connected = serializers.SerializerMethodField()
     office_profile = serializers.SerializerMethodField()
 
     class Meta:
@@ -71,6 +73,20 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["created_at", "has_bank_connected", "email", "devices", "billing", "notifications", "office_profile"]
+
+    def get_has_bank_connected(self, obj) -> bool:
+        """
+        🚀 Busca a primeira firma do usuário e verifica se ela possui alguma conta 
+        bancária conectada (com external_account_id preenchido da Pluggy).
+        """
+        membership = obj.user.firm_memberships.first()
+        if not membership:
+            return False
+            
+        return BankAccount.objects.filter(
+            firm=membership.firm, 
+            external_account_id__isnull=False
+        ).exists()
 
     def get_office_profile(self, obj):
         return OfficeProfileSerializer(obj).data
