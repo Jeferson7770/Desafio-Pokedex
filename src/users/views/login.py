@@ -55,13 +55,14 @@ class LoginView(APIView):
             ip_address = x_forwarded_for.split(',')[0].strip() if x_forwarded_for else request.META.get('REMOTE_ADDR')
 
             jti = refresh.get('jti')
+
             UserDevice.objects.update_or_create(
                 user=user,
-                refresh_token_id=jti,
+                device_name=device_name,
                 defaults={
-                    "device_name": device_name,
                     "browser": browser,
-                    "ip_address": ip_address
+                    "ip_address": ip_address,
+                    "refresh_token_id": jti
                 }
             )
 
