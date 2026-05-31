@@ -53,7 +53,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
         """
         POST /api/dinheiro/bank-accounts/pluggy/sincronizar/
         Recebe o 'item_id' do frontend, busca as contas conectadas na Pluggy
-        e atualiza/cria os registros na tabela BankAccount.
+        e atualiza/cria os registros na tabela BankAccount usando as colunas corretas.
         """
         firm = self._get_user_firm()
         item_id = request.data.get("item_id")
@@ -69,17 +69,18 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
             with db_transaction.atomic():
                 for conta in contas_pluggy:
+                    id_conta_pluggy = conta.get("id")
                     nome_banco = conta.get("institution", {}).get("name", "Banco Conectado")
                     saldo_atual = conta.get("balance", 0)
-                    numero_conta = conta.get("number", "")
                     tipo_conta = conta.get("type", "BANK")
                     
                     bank_account, created = BankAccount.objects.update_or_create(
                         firm=firm,
-                        account_number=numero_conta, 
+                        external_account_id=id_conta_pluggy,
                         defaults={
                             "name": f"{nome_banco} - {tipo_conta.capitalize()}",
                             "current_balance": Decimal(str(saldo_atual)),
+                            "provider_name": "PLUGGY",
                         }
                     )
                     
