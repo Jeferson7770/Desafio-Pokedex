@@ -4,7 +4,7 @@ from ..models.dinheiro import BankAccount, Transaction
 class BankAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = BankAccount
-        fields = ["id", "firm", "name", "account_type", "provider_name", "initial_balance", "current_balance", "created_at"]
+        fields = ["id", "firm", "name", "account_type", "provider_name", "external_account_id", "initial_balance", "current_balance", "created_at"]
         read_only_fields = ["id", "firm", "current_balance", "created_at"]
 
 
