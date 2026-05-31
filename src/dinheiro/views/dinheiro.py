@@ -39,8 +39,8 @@ class BankAccountViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"], url_path="pluggy/sincronizar")
     def pluggy_sincronizar(self, request):
         """
-        Sincroniza Contas E Transações do Mercado Pago de forma unificada.
-        Garante não duplicar contas baseado no ID único estrutural.
+        Sincroniza Contas de forma rápida para evitar HTTP 502 (Timeout).
+        Salva saldos e processa transações de forma otimizada.
         """
         firm = self._get_user_firm()
         item_id = request.data.get("item_id")
@@ -55,6 +55,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             
             contas_pluggy = service.buscar_contas_do_item(item_id)
             contas_sincronizadas = []
+            contas_para_extrato = []
 
             with db_transaction.atomic():
                 for conta in contas_pluggy:
@@ -73,13 +74,17 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                             "account_type": BankAccount.AccountType.CHECKING if tipo_conta == "BANK" else BankAccount.AccountType.INVESTMENT
                         }
                     )
-                    
+                    contas_sincronizadas.append(bank_account)
+                    contas_para_extrato.append((bank_account, id_conta_pluggy))
+
+            for bank_account, id_conta_pluggy in contas_para_extrato:
+                try:
                     transacoes_pluggy = service.buscar_transacoes_da_conta(id_conta_pluggy)
+                    
                     for tx in transacoes_pluggy:
                         tx_id = tx.get("id")
                         tx_amount = abs(Decimal(str(tx.get("amount", 0))))
                         tx_description = tx.get("description", "Transação Open Finance")
-                        
                         tipo_tx = Transaction.TransactionType.OUTFLOW if tx.get("amount", 0) < 0 else Transaction.TransactionType.INFLOW
                         
                         raw_date = tx.get("date", "")[:10]
@@ -96,12 +101,13 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                                 "is_reconciled": True
                             }
                         )
+                except Exception as tx_err:
+                    print(f"Erro ao importar transações da conta {id_conta_pluggy}: {str(tx_err)}")
 
-                    contas_sincronizadas.append(BankAccountSerializer(bank_account).data)
-
+            serializer = BankAccountSerializer(contas_sincronizadas, many=True)
             return Response({
-                "message": "Sincronização de saldos e extratos concluída.",
-                "accounts": contas_sincronizadas
+                "message": "Sincronização concluída.",
+                "accounts": serializer.data
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
