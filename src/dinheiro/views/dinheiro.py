@@ -13,7 +13,7 @@ import threading
 import re
 
 from ..models.dinheiro import BankAccount, Transaction
-from ..models.honorarios import Honorario
+from ...honorarios.models.honorarios import Honorario
 from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
 from ..services.pluggy import PluggyService  
 
