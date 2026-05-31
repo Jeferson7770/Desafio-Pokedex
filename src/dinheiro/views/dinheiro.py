@@ -9,6 +9,7 @@ from django.utils import timezone
 from decimal import Decimal
 import datetime
 import calendar
+import threading
 
 from ..models.dinheiro import BankAccount, Transaction
 from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
@@ -27,6 +28,39 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             raise ValidationError({"detail": "O usuário precisa estar vinculado a um escritório para esta operação."})
         return membership.firm
 
+    def _processar_extrato_background(self, contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes):
+        service = PluggyService()
+        for bank_account, id_conta_pluggy in contas_para_extrato:
+            try:
+                transacoes_pluggy = service.buscar_transacoes_da_conta(
+                    id_conta_pluggy, 
+                    from_date=primeiro_dia_mes, 
+                    to_date=ultimo_dia_do_mes
+                )
+                
+                for tx in transacoes_pluggy:
+                    tx_id = tx.get("id")
+                    tx_amount = abs(Decimal(str(tx.get("amount", 0))))
+                    tx_description = tx.get("description", "Transação Open Finance")
+                    tipo_tx = Transaction.TransactionType.OUTFLOW if tx.get("amount", 0) < 0 else Transaction.TransactionType.INFLOW
+                    
+                    raw_date = tx.get("date", "")[:10]
+                    tx_date = datetime.datetime.strptime(raw_date, "%Y-%m-%d").date()
+
+                    Transaction.objects.get_or_create(
+                        external_transaction_id=tx_id,
+                        defaults={
+                            "account": bank_account,
+                            "description": tx_description,
+                            "amount": tx_amount,
+                            "transaction_type": tipo_tx,
+                            "date": tx_date,
+                            "is_reconciled": True
+                        }
+                    )
+            except Exception as tx_err:
+                print(f"Erro background item {id_conta_pluggy}: {str(tx_err)}")
+
     @action(detail=False, methods=["post"], url_path="pluggy/sincronizar")
     def pluggy_sincronizar(self, request):
         firm = self._get_user_firm()
@@ -37,7 +71,11 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
         try:
             service = PluggyService()
-            service.atualizar_item(item_id)
+            
+            try:
+                service.atualizar_item(item_id)
+            except Exception as update_err:
+                print(f"Aviso atualização item {item_id}: {str(update_err)}")
             
             contas_pluggy = service.buscar_contas_do_item(item_id)
             contas_sincronizadas = []
@@ -77,42 +115,17 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             primeiro_dia_mes = hoje.replace(day=1).strftime("%Y-%m-%d")
             ultimo_dia_do_mes = hoje.replace(day=calendar.monthrange(hoje.year, hoje.month)[1]).strftime("%Y-%m-%d")
 
-            for bank_account, id_conta_pluggy in contas_para_extrato:
-                try:
-                    transacoes_pluggy = service.buscar_transacoes_da_conta(
-                        id_conta_pluggy, 
-                        from_date=primeiro_dia_mes, 
-                        to_date=ultimo_dia_do_mes
-                    )
-                    
-                    for tx in transacoes_pluggy:
-                        tx_id = tx.get("id")
-                        tx_amount = abs(Decimal(str(tx.get("amount", 0))))
-                        tx_description = tx.get("description", "Transação Open Finance")
-                        tipo_tx = Transaction.TransactionType.OUTFLOW if tx.get("amount", 0) < 0 else Transaction.TransactionType.INFLOW
-                        
-                        raw_date = tx.get("date", "")[:10]
-                        tx_date = datetime.datetime.strptime(raw_date, "%Y-%m-%d").date()
-
-                        Transaction.objects.get_or_create(
-                            external_transaction_id=tx_id,
-                            defaults={
-                                "account": bank_account,
-                                "description": tx_description,
-                                "amount": tx_amount,
-                                "transaction_type": tipo_tx,
-                                "date": tx_date,
-                                "is_reconciled": True
-                            }
-                        )
-                except Exception as tx_err:
-                    print(f"Erro ao importar transações da conta {id_conta_pluggy}: {str(tx_err)}")
+            threading.Thread(
+                target=self._processar_extrato_background,
+                args=(contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes),
+                daemon=True
+            ).start()
 
             serializer = BankAccountSerializer(contas_sincronizadas, many=True)
             return Response({
-                "message": "Sincronização concluída com sucesso para o mês atual.",
+                "message": "Os dados das contas foram carregados. As transações estão sendo sincronizadas em segundo plano e aparecerão em breve.",
                 "accounts": serializer.data
-            }, status=status.HTTP_200_OK)
+            }, status=status.HTTP_202_ACCEPTED)
 
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
