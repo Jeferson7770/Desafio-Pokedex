@@ -89,10 +89,10 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     id_conta_pluggy = conta.get("id")
                     
                     nome_da_conta_pluggy = conta.get("name") or ""
+                    
                     nome_instituicao = (
                         conta.get("institution", {}).get("name") 
-                        or conta.get("providerName") 
-                        or "Banco Conectado"
+                        or conta.get("providerName")
                     )
                     
                     if nome_da_conta_pluggy:
