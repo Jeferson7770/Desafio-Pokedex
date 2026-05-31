@@ -88,13 +88,18 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                 for conta in contas_pluggy:
                     id_conta_pluggy = conta.get("id")
                     
-                    nome_da_conta_pluggy = conta.get("name") or "Conta Open Finance"
+                    nome_da_conta_pluggy = conta.get("name") or ""
                     nome_instituicao = (
                         conta.get("institution", {}).get("name") 
                         or conta.get("providerName") 
                         or "Banco Conectado"
                     )
                     
+                    if nome_da_conta_pluggy:
+                        nome_exibicao = f"{nome_instituicao} - {nome_da_conta_pluggy}"
+                    else:
+                        nome_exibicao = nome_instituicao
+
                     saldo_atual = conta.get("balance")
                     if saldo_atual is None:
                         saldo_atual = conta.get("availableBalance", 0)
@@ -105,7 +110,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                         firm=firm,
                         external_account_id=id_conta_pluggy, 
                         defaults={
-                            "name": f"{nome_instituicao} - {nome_da_conta_pluggy}",
+                            "name": nome_exibicao,
                             "current_balance": Decimal(str(saldo_atual)),
                             "provider_name": nome_instituicao,
                             "account_type": BankAccount.AccountType.CHECKING if tipo_conta in ["BANK", "WALLET"] else BankAccount.AccountType.INVESTMENT
