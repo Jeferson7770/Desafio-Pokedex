@@ -166,35 +166,6 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             return Response({"message": "Nenhuma conta vinculada ao Open Finance para atualizar."}, status=status.HTTP_200_OK)
         return Response({"message": "Saldos sincronizados em segundo plano automaticamente."}, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=["get"], url_path="pluggy/saldo-bancario-total")
-    def saldo_bancario_total(self, request):
-        firm = self._get_user_firm()
-        saldo_total = BankAccount.objects.filter(firm=firm).aggregate(total=Sum('current_balance'))['total'] or Decimal('0.00')
-        return Response({
-            "total_bank_balance": float(saldo_total)
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=["get"], url_path="pluggy/disponibilidade-financeira")
-    def disponibilidade_financeira(self, request):
-        firm = self._get_user_firm()
-        hoje = datetime.date.today()
-        
-        saldo_bancario = BankAccount.objects.filter(firm=firm).aggregate(total=Sum('current_balance'))['total'] or Decimal('0.00')
-        
-        honorarios_recebidos_mes = Honorario.objects.filter(
-            firm=firm,
-            status=Honorario.Status.RECEBIDO,
-            date__year=hoje.year,
-            date__month=hoje.month
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        
-        total_disponivel = saldo_bancario + honorarios_recebidos_mes
-        
-        return Response({
-            "total_bank_balance": float(saldo_bancario),
-            "received_fees_current_month": float(honorarios_recebidos_mes),
-            "total_financial_availability": float(total_disponivel)
-        }, status=status.HTTP_200_OK)
 
 class TransactionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -202,6 +173,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Transaction.objects.filter(account__firm__members__user=self.request.user)
+
+    def _get_user_firm(self):
+        membership = self.request.user.firm_memberships.first()
+        if not membership:
+            raise ValidationError({"detail": "O usuário precisa estar vinculado a um escritório para esta operação."})
+        return membership.firm
 
     def perform_create(self, serializer):
         with db_transaction.atomic():
@@ -228,25 +205,37 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="cash-flow-summary")
     def cash_flow_summary(self, request):
-        queryset = self.get_queryset()
+        firm = self._get_user_firm()
+        hoje = datetime.date.today()
         
+        queryset = self.get_queryset()
         inflows = queryset.filter(transaction_type=Transaction.TransactionType.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
         outflows = queryset.filter(transaction_type=Transaction.TransactionType.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
         
-        return Response({
-            "total_inflows": float(inflows),
-            "total_outflows": float(outflows),
-            "net_cash_flow": float(inflows - outflows)
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=["get"], url_path="top-cinco-transacoes")
-    def top_cinco_transacoes_mes(self, request):
-        hoje = datetime.date.today()
+        saldo_bancario_total = BankAccount.objects.filter(firm=firm).aggregate(total=Sum('current_balance'))['total'] or Decimal('0.00')
         
-        queryset = self.get_queryset().filter(
+        honorarios_recebidos_mes = Honorario.objects.filter(
+            firm=firm,
+            status=Honorario.Status.RECEBIDO,
+            date__year=hoje.year,
+            date__month=hoje.month
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        disponibilidade_financeira = saldo_bancario_total + honorarios_recebidos_mes
+        
+        transacoes_mes = queryset.filter(
             date__year=hoje.year,
             date__month=hoje.month
         ).order_by("-amount")[:5]
         
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        top_transactions_serializer = self.get_serializer(transacoes_mes, many=True)
+        
+        return Response({
+            "total_inflows": float(inflows),
+            "total_outflows": float(outflows),
+            "net_cash_flow": float(inflows - outflows),
+            "total_bank_balance": float(saldo_bancario_total),
+            "received_fees_current_month": float(honorarios_recebidos_mes),
+            "total_financial_availability": float(disponibilidade_financeira),
+            "top_five_transactions_current_month": top_transactions_serializer.data
+        }, status=status.HTTP_200_OK)
