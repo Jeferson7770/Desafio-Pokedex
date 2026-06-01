@@ -1,8 +1,11 @@
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.db.models import Sum
 from django.db import transaction as db_transaction
 from django.utils import timezone
@@ -16,6 +19,8 @@ from ..models.dinheiro import BankAccount, Transaction
 from ...honorarios.models.honorarios import Honorario
 from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
 from ..services.pluggy import PluggyService  
+from ...users.utils.telemetry import track_event
+
 
 class BankAccountViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -30,7 +35,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             raise ValidationError({"detail": "O usuário precisa estar vinculado a um escritório para esta operação."})
         return membership.firm
 
-    def _processar_extrato_background(self, contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes, ano_atual, mes_atual):
+    def _processar_extrato_background(self, user_para_telemetria, contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes, ano_atual, mes_atual):
         service = PluggyService()
         for bank_account, id_conta_pluggy in contas_para_extrato:
             try:
@@ -40,6 +45,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     to_date=ultimo_dia_do_mes
                 )
                 
+                tx_criadas_count = 0
                 for tx in transacoes_pluggy:
                     raw_date = tx.get("date", "")[:10]
                     tx_date = datetime.datetime.strptime(raw_date, "%Y-%m-%d").date()
@@ -52,7 +58,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     tx_description = tx.get("description", "Transação Open Finance")
                     tipo_tx = Transaction.TransactionType.OUTFLOW if tx.get("amount", 0) < 0 else Transaction.TransactionType.INFLOW
                     
-                    Transaction.objects.get_or_create(
+                    _, created = Transaction.objects.get_or_create(
                         external_transaction_id=tx_id,
                         defaults={
                             "account": bank_account,
@@ -63,8 +69,29 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                             "is_reconciled": True
                         }
                     )
+                    if created:
+                        tx_criadas_count += 1
+
+                track_event(
+                    user=user_para_telemetria,
+                    event_name="open_finance_extrato_background_sucesso",
+                    properties={
+                        "account_id": bank_account.id,
+                        "provider_name": bank_account.provider_name,
+                        "novas_transacoes_importadas": tx_criadas_count
+                    }
+                )
+
             except Exception as tx_err:
                 print(f"Erro background item {id_conta_pluggy}: {str(tx_err)}")
+                track_event(
+                    user=user_para_telemetria,
+                    event_name="open_finance_extrato_background_falha",
+                    properties={
+                        "external_account_id": id_conta_pluggy,
+                        "motivo_erro": f"Erro ao processar transacoes no background: {str(tx_err)}"
+                    }
+                )
 
     @action(detail=False, methods=["post"], url_path="pluggy/sincronizar")
     def pluggy_sincronizar(self, request):
@@ -72,6 +99,11 @@ class BankAccountViewSet(viewsets.ModelViewSet):
         item_id = request.data.get("item_id")
 
         if not item_id:
+            track_event(
+                user=request.user,
+                event_name="open_finance_sincronizacao_falha",
+                properties={"motivo_erro": "item_id nao fornecido"}
+            )
             raise ValidationError({"detail": "O parâmetro 'item_id' é obrigatório."})
 
         try:
@@ -81,6 +113,11 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                 service.atualizar_item(item_id)
             except Exception as update_err:
                 print(f"Aviso atualização item {item_id}: {str(update_err)}")
+                track_event(
+                    user=request.user,
+                    event_name="open_finance_aviso_atualizacao_item",
+                    properties={"item_id": item_id, "aviso_detalhe": str(update_err)}
+                )
             
             contas_pluggy = service.buscar_contas_do_item(item_id)
             contas_sincronizadas = []
@@ -89,7 +126,6 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             with db_transaction.atomic():
                 for conta in contas_pluggy:
                     id_conta_pluggy = conta.get("id")
-                    
                     nome_da_conta_pluggy = conta.get("name") or ""
                     
                     nome_original_pluggy = (
@@ -129,13 +165,22 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     contas_sincronizadas.append(bank_account)
                     contas_para_extrato.append((bank_account, id_conta_pluggy))
 
+            track_event(
+                user=request.user,
+                event_name="open_finance_sincronizacao_sucesso",
+                properties={
+                    "item_id": item_id,
+                    "quantidade_contas_sincronizadas": len(contas_sincronizadas)
+                }
+            )
+
             hoje = datetime.date.today()
             primeiro_dia_mes = hoje.replace(day=1).strftime("%Y-%m-%d")
             ultimo_dia_do_mes = hoje.replace(day=calendar.monthrange(hoje.year, hoje.month)[1]).strftime("%Y-%m-%d")
 
             threading.Thread(
                 target=self._processar_extrato_background,
-                args=(contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes, hoje.year, hoje.month),
+                args=(request.user, contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes, hoje.year, hoje.month),
                 daemon=True
             ).start()
 
@@ -146,6 +191,11 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_202_ACCEPTED)
 
         except Exception as e:
+            track_event(
+                user=request.user,
+                event_name="open_finance_sincronizacao_falha",
+                properties={"item_id": item_id, "motivo_erro": f"Erro crítico na rota de sync: {str(e)}"}
+            )
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"], url_path="pluggy/connect-token")
@@ -154,14 +204,31 @@ class BankAccountViewSet(viewsets.ModelViewSet):
         try:
             service = PluggyService()
             token = service.gerar_connect_token()
+            
+            track_event(
+                user=request.user,
+                event_name="open_finance_connect_token_gerado"
+            )
             return Response({"connect_token": token}, status=status.HTTP_200_OK)
         except Exception as e:
+            track_event(
+                user=request.user,
+                event_name="open_finance_connect_token_falha",
+                properties={"motivo_erro": str(e)}
+            )
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"], url_path="pluggy/atualizar-dashboard")
     def atualizar_saldos_dashboard(self, request):
         firm = self._get_user_firm()
         contas_open_finance = BankAccount.objects.filter(firm=firm, external_account_id__isnull=False)
+        
+        track_event(
+            user=request.user,
+            event_name="dashboard_atualizacao_saldos_requisitado",
+            properties={"contas_open_finance_count": contas_open_finance.count()}
+        )
+
         if not contas_open_finance.exists():
             return Response({"message": "Nenhuma conta vinculada ao Open Finance para atualizar."}, status=status.HTTP_200_OK)
         return Response({"message": "Saldos sincronizados em segundo plano automaticamente."}, status=status.HTTP_200_OK)
@@ -191,9 +258,22 @@ class TransactionViewSet(viewsets.ModelViewSet):
                 account.current_balance -= instance.amount
             account.save()
 
+            track_event(
+                user=self.request.user,
+                event_name="transacao_manual_criada",
+                properties={
+                    "transaction_id": instance.id,
+                    "account_id": account.id,
+                    "transaction_type": instance.transaction_type,
+                    "is_manual": True
+                }
+            )
+
     def perform_destroy(self, instance):
         with db_transaction.atomic():
             account = instance.account
+            transaction_id = instance.id
+            transaction_type = instance.transaction_type
             
             if instance.transaction_type == Transaction.TransactionType.INFLOW:
                 account.current_balance -= instance.amount
@@ -202,6 +282,16 @@ class TransactionViewSet(viewsets.ModelViewSet):
             account.save()
             
             instance.delete()
+
+            track_event(
+                user=self.request.user,
+                event_name="transacao_manual_removida",
+                properties={
+                    "transaction_id": transaction_id,
+                    "account_id": account.id,
+                    "transaction_type": transaction_type
+                }
+            )
 
     @action(detail=False, methods=["get"], url_path="cash-flow-summary")
     def cash_flow_summary(self, request):
@@ -230,6 +320,15 @@ class TransactionViewSet(viewsets.ModelViewSet):
         ).order_by("-amount")[:5]
         
         top_transactions_serializer = self.get_serializer(saidas_mes, many=True)
+        
+        track_event(
+            user=request.user,
+            event_name="visualizou_resumo_fluxo_caixa",
+            properties={
+                "total_bank_balance_snapshot": float(saldo_bancario_total),
+                "total_financial_availability_snapshot": float(disponibilidade_financeira)
+            }
+        )
         
         return Response({
             "total_inflows": float(inflows),
