@@ -6,6 +6,8 @@ from rest_framework.decorators import action
 
 from ..models.billing import Subscription
 from ..serializers.billing import SubscriptionSerializer
+from ...users.utils.telemetry import track_event
+
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
     serializer_class = SubscriptionSerializer
@@ -27,6 +29,17 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         """ Retorna direto o objeto da assinatura (Igual fizemos no Perfil) """
         instance = self.get_object()
         serializer = self.get_serializer(instance)
+
+        track_event(
+            user=request.user,
+            event_name="billing_view_assinatura",
+            properties={
+                "subscription_id": instance.id,
+                "plan_name": instance.plan.name if hasattr(instance, 'plan') and instance.plan else "N/A",
+                "status_assinatura": instance.status if hasattr(instance, 'status') else "N/A"
+            }
+        )
+
         return Response(serializer.data)
 
     @action(detail=False, methods=["post"], url_path="prepare-upgrade")
@@ -36,6 +49,16 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         Aqui você receberá o novo 'plan_id' do front-end, chamará a classe de 
         serviço do gateway, atualizará no Stripe/Asaas e mudará o plano aqui.
         """
+        new_plan_id = request.data.get("plan_id")
+
+        track_event(
+            user=request.user,
+            event_name="billing_intencao_upgrade",
+            properties={
+                "plan_id_pretendido": new_plan_id
+            }
+        )
+
         return Response(
             {"detail": "Rota preparada. Integração com gateway pendente."},
             status=status.HTTP_501_NOT_IMPLEMENTED
@@ -47,6 +70,11 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         Espaço reservado para o botão 'Cancelar Assinatura'.
         No futuro, disparará uma chamada de cancelamento para o gateway.
         """
+        track_event(
+            user=request.user,
+            event_name="billing_intencao_cancelamento"
+        )
+
         return Response(
             {"detail": "Rota preparada. Integração com gateway pendente."},
             status=status.HTTP_501_NOT_IMPLEMENTED
