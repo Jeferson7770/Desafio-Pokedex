@@ -96,6 +96,9 @@ DATABASES = {
     )
 }
 
+POSTHOG_API_KEY = config("POSTHOG_API_KEY", default=None)
+POSTHOG_HOST = config("POSTHOG_HOST", default="https://us.i.posthog.com")
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
@@ -122,5 +125,3 @@ if not DEBUG:
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-POSTHOG_API_KEY = config("POSTHOG_API_KEY")
-POSTHOG_HOST = config("POSTHOG_HOST")
