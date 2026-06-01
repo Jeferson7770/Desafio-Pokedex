@@ -5,6 +5,8 @@ from rest_framework.exceptions import ValidationError
 from django.utils import timezone
 from ..models.relatorios import FinancialReportSummary
 from ..serializers.relatorios import FinancialReportDashboardSerializer
+from ...users.utils.telemetry import track_event
+
 
 class FinancialReportViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -34,11 +36,21 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
         firm = self._get_user_firm(request.user)
         
         now = timezone.now()
-        year = int(request.query_params.get('year', now.year))
-        month = int(request.query_params.get('month', now.month))
+        
+        try:
+            year = int(request.query_params.get('year', now.year))
+            month = int(request.query_params.get('month', now.month))
+        except ValueError:
+            track_event(
+                user=request.user,
+                event_name="relatorio_financeiro_filtro_erro",
+                properties={"motivo_erro": "ano_ou_mes_invalido"}
+            )
+            raise ValidationError({"detail": "Os parâmetros 'year' e 'month' devem ser inteiros válidos."})
 
         try:
             report_instance = self.get_queryset().get(firm=firm, year=year, month=month)
+            dados_existiam = True
         except FinancialReportSummary.DoesNotExist:
             report_instance = FinancialReportSummary(
                 firm=firm,
@@ -47,8 +59,22 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
                 total_revenue=0.00,
                 total_expense=0.00
             )
+            dados_existiam = False
 
         serializer = self.get_serializer(report_instance)
+
+        track_event(
+            user=request.user,
+            event_name="relatorio_financeiro_visualizado",
+            properties={
+                "ano_relatorio": year,
+                "mes_relatorio": month,
+                "continha_dados_consolidados": dados_existiam,
+                "total_revenue_snapshot": float(report_instance.total_revenue),
+                "total_expense_snapshot": float(report_instance.total_expense)
+            }
+        )
+
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
@@ -70,6 +96,19 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
             year=year,
             month=month,
             defaults=serializer.validated_data
+        )
+
+        track_event(
+            user=user,
+            event_name="relatorio_financeiro_consolidado",
+            properties={
+                "report_id": instance.id if instance.id else None,
+                "ano_relatorio": year,
+                "mes_relatorio": month,
+                "acao": "criado" if created else "atualizado",
+                "total_revenue": float(instance.total_revenue),
+                "total_expense": float(instance.total_expense)
+            }
         )
 
         response_serializer = self.get_serializer(instance)
