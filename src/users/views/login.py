@@ -5,6 +5,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from ..serializers.login import LoginSerializer
 from ..models.device import UserDevice
+from ..utils.telemetry import track_event
+
 
 class LoginView(APIView):
     def post(self, request):
@@ -79,6 +81,17 @@ class LoginView(APIView):
                         "refresh_token_id": jti
                     }
                 )
+
+            track_event(
+                user=user,
+                event_name="usuario_logou",
+                properties={
+                    "device_name": device_name,
+                    "browser": browser,
+                    "ip_address": ip_address,
+                    "has_device_uuid": bool(device_uuid)
+                }
+            )
 
             return Response({
                 "user": {
