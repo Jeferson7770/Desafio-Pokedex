@@ -7,6 +7,7 @@ import datetime
 
 from ..models.expenses import Expense, ParcelaDespesa
 from ..serializers.expenses import ExpenseSerializer, ExpenseDeferralSerializer
+from ...users.utils.telemetry import track_event
 
 
 class ExpenseViewSet(viewsets.ModelViewSet):
@@ -35,6 +36,11 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                     due_date__month=int(month)
                 )
             except ValueError:
+                track_event(
+                    user=self.request.user,
+                    event_name="despesas_filtro_erro",
+                    properties={"year_tentado": year, "month_tentado": month, "motivo": "valores_nao_inteiros"}
+                )
                 raise ValidationError("Os parâmetros 'year' e 'month' precisam ser números inteiros válidos.")
 
         return queryset.order_by("due_date")
@@ -55,6 +61,17 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
+        
+        track_event(
+            user=request.user,
+            event_name="despesa_criada_sucesso",
+            properties={
+                "expense_id": serializer.data.get("id"),
+                "amount": float(serializer.data.get("amount", 0)),
+                "has_installments": len(serializer.data.get("installments", [])) > 0
+            }
+        )
+        
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
@@ -73,22 +90,43 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                 expense__firm__members__user=request.user
             )
         except ParcelaDespesa.DoesNotExist:
+            track_event(
+                user=request.user,
+                event_name="despesa_adiamento_falha",
+                properties={"installment_pk": installment_pk, "motivo_erro": "parcela_nao_encontrada"}
+            )
             raise ValidationError("Parcela não encontrada ou acesso negado.")
 
         serializer = ExpenseDeferralSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        original_date = installment.due_date
+        new_date = serializer.validated_data["new_date"]
+        penalty_amount = serializer.validated_data.get("penalty_amount", 0)
+
         serializer.save(
             installment=installment,
-            original_date=installment.due_date
+            original_date=original_date
         )
 
-        installment.due_date = serializer.validated_data["new_date"]
+        installment.due_date = new_date
         
-        if serializer.validated_data.get("penalty_amount"):
-            installment.amount += serializer.validated_data["penalty_amount"]
+        if penalty_amount:
+            installment.amount += penalty_amount
             
         installment.save()
+
+        track_event(
+            user=request.user,
+            event_name="despesa_parcela_adiada",
+            properties={
+                "installment_id": installment.id,
+                "expense_id": installment.expense.id,
+                "original_due_date": str(original_date),
+                "new_due_date": str(new_date),
+                "penalty_amount": float(penalty_amount) if penalty_amount else 0.0
+            }
+        )
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -130,5 +168,13 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             aggregated_data[year_month]["total_amount"] += float(expense_data["amount"])
 
         sorted_summary = sorted(aggregated_data.values(), key=lambda x: x["period"], reverse=True)
+
+        track_event(
+            user=request.user,
+            event_name="visualizou_resumo_despesas_anual",
+            properties={
+                "meses_com_dados_count": len(sorted_summary)
+            }
+        )
 
         return Response(sorted_summary, status=status.HTTP_200_OK)
