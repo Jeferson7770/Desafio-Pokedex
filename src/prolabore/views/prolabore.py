@@ -10,6 +10,7 @@ from ..serializers.prolabore import (
 )
 from ...dinheiro.models.dinheiro import Transaction
 from ..utils.calculo import calcular_pro_labore_escritorio
+from ...users.utils.telemetry import track_event
 
 
 class ProLaboreViewSet(viewsets.ModelViewSet):
@@ -24,6 +25,11 @@ class ProLaboreViewSet(viewsets.ModelViewSet):
         profile = getattr(user, "profile", None)
         
         if not profile:
+            track_event(
+                user=user,
+                event_name="pro_labore_calculo_falha",
+                properties={"motivo_erro": "perfil_advogado_nao_encontrado"}
+            )
             return Response(
                 {"detail": "Perfil de advogado não encontrado para realizar o cálculo."}, 
                 status=status.HTTP_404_NOT_FOUND
@@ -47,6 +53,17 @@ class ProLaboreViewSet(viewsets.ModelViewSet):
                 pro_labore_sugerido=calculos_objeto["maximo_seguro"]["pro_labore_bruto"],
                 custo_total_escritorio=calculos_objeto["maximo_seguro"]["custo_total_escritorio"]
             )
+
+        track_event(
+            user=user,
+            event_name="pro_labore_calculo_sucesso",
+            properties={
+                "perfil_estagio_recomendado": calculos_objeto["nivel_recomendado"].upper(),
+                "meses_analisados": calculos_objeto["meses_analisados"],
+                "pro_labore_sugerido": float(calculos_objeto["maximo_seguro"]["pro_labore_bruto"]),
+                "tax_regime_utilizado": profile.tax_regime if hasattr(profile, 'tax_regime') else "N/A"
+            }
+        )
 
         output_serializer = ProLaboreCalculoSerializer(data=calculos_objeto)
         output_serializer.is_valid(raise_exception=True)
