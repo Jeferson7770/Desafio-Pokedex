@@ -1,8 +1,9 @@
 from ..models.firm_member import FirmMember
 from ..models.firm_structure import Firm
 from ..serializers.firm import FirmSerializer, FirmCreateSerializer, FirmMemberSerializer
+from ...users.utils.telemetry import track_event
 
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -16,6 +17,24 @@ class FirmViewSet(viewsets.ModelViewSet):
         if self.action == "create":
             return FirmCreateSerializer
         return FirmSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        firm = serializer.save()
+        
+        track_event(
+            user=request.user,
+            event_name="escritorio_criado_sucesso",
+            properties={
+                "firm_id": str(firm.id),
+                "firm_name": firm.name
+            }
+        )
+        
+        response_serializer = FirmSerializer(firm)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["get"])
     def members(self, request, pk=None):
@@ -33,5 +52,14 @@ class FirmViewSet(viewsets.ModelViewSet):
         
         member = serializer.save(firm_id=pk)
         
+        track_event(
+            user=request.user,
+            event_name="escritorio_membro_adicionado",
+            properties={
+                "firm_id": str(pk),
+                "novo_membro_role": member.role if hasattr(member, 'role') else "N/A"
+            }
+        )
+        
         response_serializer = FirmMemberSerializer(member)
-        return Response(response_serializer.data, status=201)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
