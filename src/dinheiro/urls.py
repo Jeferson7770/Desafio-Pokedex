@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views.dinheiro import BankAccountViewSet, TransactionViewSet, FinanceDashboardSummaryView
+from .views.dinheiro import BankAccountViewSet, TransactionViewSet
+from .views.dashboard import FinanceDashboardSummaryView
 
 router = DefaultRouter()
 router.register(r'accounts', BankAccountViewSet, basename='bank-account')
