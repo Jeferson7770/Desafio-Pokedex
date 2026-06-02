@@ -1,16 +1,45 @@
 from django.db import models
 
-class Case(models.Model):
+
+class Client(models.Model):
+    class Tipo(models.TextChoices):
+        PF = "PF", "Pessoa Fisica"
+        PJ = "PJ", "Pessoa Juridica"
+
+    firm = models.ForeignKey("firms.Firm", on_delete=models.CASCADE, related_name="clients")
+    name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True, default="")
+    phone = models.CharField(max_length=20, blank=True, default="")
+    cpf_cnpj = models.CharField(max_length=18, blank=True, default="")
+    type = models.CharField(max_length=2, choices=Tipo.choices, default=Tipo.PF)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Process(models.Model):
     class PaymentType(models.TextChoices):
         FIXED = "FIXED"
         INSTALLMENT = "INSTALLMENT"
         SUCCESS_FEE = "SUCCESS_FEE"
         HYBRID = "HYBRID"
 
-    firm = models.ForeignKey("firms.Firm", on_delete=models.CASCADE, related_name="cases")
+    class Status(models.TextChoices):
+        ATIVO = "ATIVO", "Ativo"
+        CONCLUIDO = "CONCLUIDO", "Concluido"
 
-    client_name = models.CharField(max_length=255)
+    firm = models.ForeignKey("firms.Firm", on_delete=models.CASCADE, related_name="cases")
+    client = models.ForeignKey("cases.Client", on_delete=models.SET_NULL, related_name="processes", null=True, blank=True)
+
+    # Legacy field kept for compatibility with old payloads.
+    client_name = models.CharField(max_length=255, blank=True, default="")
     title = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ATIVO)
 
     total_fee = models.DecimalField(max_digits=12, decimal_places=2)
     payment_type = models.CharField(max_length=20, choices=PaymentType.choices)
@@ -23,5 +52,14 @@ class Case(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if self.client_id:
+            self.client_name = self.client.name
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.title
+
+
+# Legacy alias to keep old imports working without creating a new model state.
+Case = Process
