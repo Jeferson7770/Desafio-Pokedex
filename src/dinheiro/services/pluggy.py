@@ -49,3 +49,12 @@ class PluggyService:
         headers = {"X-API-KEY": api_token}
         response = requests.post(url, headers=headers)
         return response.status_code in [200, 201]
+
+    def obter_item(self, item_id):
+        """Obtém os dados de um item (incluindo status de atualização)."""
+        api_token = self._get_api_token()
+        url = f"{self.base_url}/items/{item_id}"
+        headers = {"X-API-KEY": api_token}
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
