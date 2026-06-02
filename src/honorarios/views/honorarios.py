@@ -1,9 +1,10 @@
-from django.db.models import Prefetch
 from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from django.shortcuts import get_object_or_404
 from ..models.honorarios import Honorario, ParcelaHonorario
-from ..serializers.honorarios import HonorarioSerializer
+from ..serializers.honorarios import HonorarioSerializer, ParcelaHonorarioSerializer
 from ...users.utils.telemetry import track_event
 
 
@@ -20,17 +21,14 @@ class HonorarioViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         firm = self._get_user_firm(user)
-        
         queryset = Honorario.objects.filter(firm=firm)
 
         year = self.request.query_params.get("year")
         month = self.request.query_params.get("month")
 
-        installment_filters = {}
-
         if year:
             try:
-                installment_filters["due_date__year"] = int(year)
+                int(year)
             except ValueError:
                 track_event(
                     user=user,
@@ -41,7 +39,7 @@ class HonorarioViewSet(viewsets.ModelViewSet):
 
         if month:
             try:
-                installment_filters["due_date__month"] = int(month)
+                int(month)
             except ValueError:
                 track_event(
                     user=user,
@@ -50,20 +48,15 @@ class HonorarioViewSet(viewsets.ModelViewSet):
                 )
                 raise ValidationError("O parâmetro 'month' deve ser um número inteiro válido.")
 
-        if installment_filters:
-            queryset = queryset.filter(installments__due_date__year=int(year) if year else queryset,
-                                       installments__due_date__month=int(month) if month else queryset).distinct()
-            
-            queryset = queryset.prefetch_related(
-                Prefetch(
-                    "installments",
-                    queryset=ParcelaHonorario.objects.filter(**installment_filters)
-                )
-            )
-        else:
-            queryset = queryset.prefetch_related('installments')
+        if year or month:
+            queryset = queryset.filter(
+                **{
+                    **({"installments__due_date__year": int(year)} if year else {}),
+                    **({"installments__due_date__month": int(month)} if month else {}),
+                }
+            ).distinct()
 
-        return queryset
+        return queryset.prefetch_related("installments")
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -96,3 +89,25 @@ class HonorarioViewSet(viewsets.ModelViewSet):
 
         firm = self._get_user_firm(user)
         serializer.save(firm=firm)
+
+    @action(detail=True, methods=["patch"], url_path=r"installments/(?P<installment_pk>[^/.]+)")
+    def update_installment(self, request, pk=None, installment_pk=None):
+        honorario = self.get_object()
+        parcela = get_object_or_404(ParcelaHonorario, honorario=honorario, id=installment_pk)
+        
+        serializer = ParcelaHonorarioSerializer(parcela, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated_installment = serializer.save()
+
+        track_event(
+            user=request.user,
+            event_name="honorarios_parcela_recebida",
+            properties={
+                "honorario_id": str(honorario.id),
+                "installment_id": str(updated_installment.id),
+                "installment_number": updated_installment.installment_number,
+                "amount": float(updated_installment.amount)
+            }
+        )
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
