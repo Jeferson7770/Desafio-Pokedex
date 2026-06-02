@@ -142,6 +142,13 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                         "status_item": status_item or "DESCONHECIDO"
                     }
                 )
+                return Response(
+                    {
+                        "message": "A sincronização bancária ainda está em processamento. Tente novamente em alguns segundos.",
+                        "item_status": status_item or "DESCONHECIDO"
+                    },
+                    status=status.HTTP_202_ACCEPTED
+                )
             
             contas_pluggy = service.buscar_contas_do_item(item_id)
             contas_sincronizadas = []
@@ -168,9 +175,12 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     else:
                         nome_exibicao = nome_instituicao
 
-                    saldo_atual = conta.get("balance")
+                    # availableBalance tende a refletir PIX/transferências mais rápido.
+                    saldo_atual = conta.get("availableBalance")
                     if saldo_atual is None:
-                        saldo_atual = conta.get("availableBalance", 0)
+                        saldo_atual = conta.get("balance")
+                    if saldo_atual is None:
+                        saldo_atual = 0
                     
                     tipo_conta = conta.get("type", "BANK")
                     
