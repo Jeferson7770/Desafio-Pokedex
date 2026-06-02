@@ -54,10 +54,12 @@ class ProcessSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         schedules_data = validated_data.pop("schedules", [])
-        membership = self.context["request"].user.firm_memberships.first()
-        if not membership:
-            raise ValidationError("O usuario nao possui nenhuma empresa vinculada.")
-        firm = membership.firm
+        firm = validated_data.pop("firm", None)
+        if firm is None:
+            membership = self.context["request"].user.firm_memberships.first()
+            if not membership:
+                raise ValidationError("O usuario nao possui nenhuma empresa vinculada.")
+            firm = membership.firm
 
         client = validated_data.get("client")
         if client:
