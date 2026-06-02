@@ -131,13 +131,11 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     nome_original_pluggy = (
                         conta.get("institution", {}).get("name") if conta.get("institution") else None
                     ) or conta.get("providerName") or "Banco Conectado"
-                    
-                    if "Banco Conectado" not in nome_original_pluggy and nome_original_pluggy != "Banco Conectado":
-                        nome_com_prefixo = f"Banco Conectado - {nome_original_pluggy}"
-                    else:
-                        nome_com_prefixo = nome_original_pluggy
 
-                    nome_instituicao = re.sub(r"^Banco Conectado\s*(-\s*)?", "", nome_com_prefixo).strip()
+                    nome_instituicao = nome_original_pluggy.replace("Banco Conectado", "")
+                    nome_instituicao = nome_instituicao.replace("-", "")
+                    nome_instituicao = nome_instituicao.strip()
+
                     if not nome_instituicao:
                         nome_instituicao = "Banco Conectado"
 
