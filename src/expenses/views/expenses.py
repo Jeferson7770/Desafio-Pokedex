@@ -3,9 +3,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
+from django.db.models import Sum
+from django.db.models.functions import ExtractYear, ExtractMonth
 import datetime
 
 from ..models.expenses import Expense, ParcelaDespesa
+from ...honorarios.models.honorarios import ParcelaHonorario
+from ...dinheiro.models.dinheiro import BankAccount
 from ..serializers.expenses import ExpenseSerializer, ExpenseDeferralSerializer
 from ...users.utils.telemetry import track_event
 
@@ -132,10 +136,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="yearly-summary")
     def yearly_summary(self, request):
-        """
-        Retorna em uma única chamada todas as despesas dos últimos 12 meses
-        (Ex: Se estamos em Maio/2026, busca de Maio/2025 até hoje), agrupadas por mês.
-        """
+        firm = self._get_user_firm(request.user)
         today = timezone.localdate()
         
         try:
@@ -144,7 +145,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             start_date = today - datetime.timedelta(days=365)
 
         expenses = Expense.objects.filter(
-            firm__members__user=request.user,
+            firm=firm,
             is_active=True,
             due_date__range=[start_date, today]
         ).prefetch_related('installments__deferrals').order_by("due_date")
@@ -152,7 +153,6 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(expenses, many=True)
 
         aggregated_data = {}
-        
         for expense_data in serializer.data:
             due_date_str = expense_data["due_date"]
             year_month = due_date_str[:7] 
@@ -161,20 +161,75 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                 aggregated_data[year_month] = {
                     "period": year_month,
                     "total_amount": 0.0,
-                    "expenses": []
+                    "expenses": [],
+                    "dashboard": {
+                        "entradas_do_mes": 0.0,
+                        "a_receber": 0.0,
+                        "saidas_do_mes": 0.0,
+                        "saldo_liquido": 0.0
+                    }
                 }
             
             aggregated_data[year_month]["expenses"].append(expense_data)
             aggregated_data[year_month]["total_amount"] += float(expense_data["amount"])
 
+        honorarios_bulk = ParcelaHonorario.objects.filter(
+            honorario__firm=firm,
+            due_date__range=[start_date, today]
+        ).annotate(
+            ano=ExtractYear('due_date'),
+            mes=ExtractMonth('due_date')
+        ).values('ano', 'mes', 'status').annotate(
+            total=Sum('amount')
+        )
+
+        despesas_bulk = ParcelaDespesa.objects.filter(
+            expense__firm=firm,
+            expense__is_active=True,
+            due_date__range=[start_date, today]
+        ).annotate(
+            ano=ExtractYear('due_date'),
+            mes=ExtractMonth('due_date')
+        ).values('ano', 'mes', 'is_paid').annotate(
+            total=Sum('amount')
+        )
+
+        for item in honorarios_bulk:
+            key = f"{item['ano']}-{str(item['mes']).zfill(2)}"
+            if key in aggregated_data:
+                total_val = float(item['total'] or 0.0)
+                if item['status'] == "RECEBIDO":
+                    aggregated_data[key]["dashboard"]["entradas_do_mes"] = total_val
+                elif item['status'] == "PENDENTE":
+                    aggregated_data[key]["dashboard"]["a_receber"] = total_val
+
+        for item in despesas_bulk:
+            key = f"{item['ano']}-{str(item['mes']).zfill(2)}"
+            if key in aggregated_data:
+                total_val = float(item['total'] or 0.0)
+                if not item['is_paid']:
+                    aggregated_data[key]["dashboard"]["saidas_do_mes"] = total_val
+
+        for period, period_data in aggregated_data.items():
+            dash = period_data["dashboard"]
+            dash["saldo_liquido"] = dash["entradas_do_mes"] - dash["saidas_do_mes"]
+
+        saldo_em_conta = BankAccount.objects.filter(firm=firm).aggregate(total=Sum("current_balance"))["total"] or 0.0
+
         sorted_summary = sorted(aggregated_data.values(), key=lambda x: x["period"], reverse=True)
+
+        response_payload = {
+            "summary": sorted_summary,
+            "total_bank_balance": float(saldo_em_conta)
+        }
 
         track_event(
             user=request.user,
             event_name="visualizou_resumo_despesas_anual",
             properties={
-                "meses_com_dados_count": len(sorted_summary)
+                "meses_com_dados_count": len(sorted_summary),
+                "total_bank_balance": float(saldo_em_conta)
             }
         )
 
-        return Response(sorted_summary, status=status.HTTP_200_OK)
+        return Response(response_payload, status=status.HTTP_200_OK)
