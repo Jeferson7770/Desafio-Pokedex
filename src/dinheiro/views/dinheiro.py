@@ -1,19 +1,16 @@
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
-from django.db.models import Sum
 from django.db import transaction as db_transaction
+from django.db.models import Sum
 from django.utils import timezone
 from decimal import Decimal
 import datetime
 import calendar
 import threading
-import re
+import time
 
 from ..models.dinheiro import BankAccount, Transaction
 from ...honorarios.models.honorarios import Honorario
@@ -34,6 +31,27 @@ class BankAccountViewSet(viewsets.ModelViewSet):
         if not membership:
             raise ValidationError({"detail": "O usuário precisa estar vinculado a um escritório para esta operação."})
         return membership.firm
+
+    def _aguardar_item_pluggy_atualizar(self, service, item_id, timeout_segundos=45):
+        """
+        Aguarda o item concluir atualização para evitar uso de saldo defasado.
+        """
+        start_time = time.time()
+        ultimo_status = None
+
+        while time.time() - start_time < timeout_segundos:
+            item_data = service.obter_item(item_id)
+            ultimo_status = item_data.get("status")
+
+            if ultimo_status == "UPDATED":
+                return True, ultimo_status
+
+            if ultimo_status in ["LOGIN_ERROR", "ERROR"]:
+                return False, ultimo_status
+
+            time.sleep(1.5)
+
+        return False, ultimo_status
 
     def _processar_extrato_background(self, user_para_telemetria, contas_para_extrato, primeiro_dia_mes, ultimo_dia_do_mes, ano_atual, mes_atual):
         service = PluggyService()
@@ -113,10 +131,16 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                 service.atualizar_item(item_id)
             except Exception as update_err:
                 print(f"Aviso atualização item {item_id}: {str(update_err)}")
+
+            atualizado, status_item = self._aguardar_item_pluggy_atualizar(service, item_id)
+            if not atualizado:
                 track_event(
                     user=request.user,
-                    event_name="open_finance_aviso_atualizacao_item",
-                    properties={"item_id": item_id, "aviso_detalhe": str(update_err)}
+                    event_name="open_finance_sincronizacao_timeout_ou_erro_status_item",
+                    properties={
+                        "item_id": item_id,
+                        "status_item": status_item or "DESCONHECIDO"
+                    }
                 )
             
             contas_pluggy = service.buscar_contas_do_item(item_id)
@@ -186,7 +210,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             return Response({
                 "message": "Os dados das contas foram carregados. As transações estão sendo sincronizadas em segundo plano e aparecerão em breve.",
                 "accounts": serializer.data
-            }, status=status.HTTP_202_ACCEPTED)
+            }, status=status.HTTP_200_OK)
 
         except Exception as e:
             track_event(
