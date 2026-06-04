@@ -20,17 +20,18 @@ Base URL:
 ## 2. Regras importantes antes de integrar
 
 1. Multi-tenant por firm: o backend sempre usa a firm do usuario autenticado.
-2. GET exige filtro obrigatorio: voce deve enviar:
+2. O filtro de data e obrigatorio apenas na listagem (`GET /api/outras-entradas/`). Endpoints de detalhe, atualizacao e delete nao exigem filtro.
+3. Na listagem, envie apenas um tipo de filtro:
    - `year` + `month` juntos, ou
    - `start_date` + `end_date` juntos.
-3. Nao pode misturar os dois tipos de filtro no mesmo GET.
 4. Para entradas parceladas:
    - as parcelas sao geradas automaticamente no `POST` do header;
    - status do header e controlado pelas parcelas;
-   - nao altere status do header via `PATCH` para registro parcelado;
-   - altere cada parcela no endpoint de installment.
+   - nao altere status do header via `PATCH` para registro parcelado — altere cada parcela individualmente.
 5. Se todas as parcelas ficarem `RECEBIDO`, o header vira `RECEBIDO` automaticamente.
 6. Se qualquer parcela estiver `PENDENTE`, o header fica `PENDENTE`.
+7. E possivel converter um registro de valor fixo para parcelado via `PATCH` (ver secao 5.2).
+8. Alterar campos estruturais de um registro ja parcelado (`total_installments`, `installment_value`, `date`, `amount`) recria todas as parcelas.
 
 ## 3. Listar entradas (GET)
 
@@ -114,7 +115,7 @@ Comportamento do backend:
 PATCH /api/outras-entradas/{id}/
 ```
 
-Exemplo (nao parcelado):
+### 5.1 Atualizar campos simples (nao parcelado)
 
 ```json
 {
@@ -127,11 +128,40 @@ Exemplo (nao parcelado):
 }
 ```
 
-Observacoes:
+Ao alterar `status` em registro nao parcelado, o backend sincroniza automaticamente a parcela unica.
 
-1. Em registro parcelado, o backend bloqueia alteracao de estrutura de parcelamento (`is_installment`, `total_installments`, `installment_value`).
-2. Em registro parcelado, `status` deve ser alterado por parcela, nao pelo header.
-3. Editar header nao recria e nao altera parcelas existentes.
+### 5.2 Converter valor fixo para parcelado
+
+Caso o advogado tenha criado como valor fixo e precise corrigir para parcelado:
+
+```json
+{
+  "is_installment": true,
+  "total_installments": 3,
+  "installment_value": 500.00,
+  "amount": 1500.00
+}
+```
+
+Comportamento do backend:
+
+1. Remove a parcela unica existente.
+2. Gera as novas parcelas com base em `date`, `installment_value` e `total_installments`.
+3. Forcca `status` do header para `PENDENTE`.
+
+### 5.3 Alterar estrutura de registro ja parcelado
+
+Alterar `total_installments`, `installment_value`, `date` ou `amount` em registro parcelado recria todas as parcelas.
+
+```json
+{
+  "total_installments": 4,
+  "installment_value": 750.00,
+  "amount": 3000.00
+}
+```
+
+Obs.: em registro parcelado, `status` deve ser alterado por parcela individualmente (ver secao 6).
 
 ## 6. Atualizar parcela individual (PATCH)
 
@@ -228,7 +258,9 @@ Comportamento:
 ## 9. Checklist rapido para o frontend
 
 1. Sempre enviar token no header.
-2. No GET, sempre enviar filtro valido obrigatorio.
-3. Para parcelado, atualizar status por installment endpoint.
-4. Tratar erros de validacao (400) por campo/mensagem.
-5. No import, tratar simultaneamente `created` e `errors`.
+2. Na listagem (`GET`), sempre enviar filtro valido (`year+month` ou `start_date+end_date`).
+3. PATCH/GET por ID e DELETE nao precisam de filtro de data.
+4. Para parcelado, atualizar status por installment endpoint — nao pelo header.
+5. Para converter fixo em parcelado, enviar `is_installment: true` + campos estruturais no PATCH.
+6. Tratar erros de validacao (400) por campo/mensagem.
+7. No import, tratar simultaneamente `created` e `errors`.
