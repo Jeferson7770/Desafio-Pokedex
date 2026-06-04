@@ -106,7 +106,15 @@ class OutraEntradaSerializer(serializers.ModelSerializer):
                 }
             )
 
-        return super().update(instance, validated_data)
+        new_status = validated_data.get("status")
+        status_changed = new_status is not None and new_status != instance.status
+
+        instance = super().update(instance, validated_data)
+
+        if status_changed and not instance.is_installment:
+            instance.installments.all().update(status=new_status)
+
+        return instance
 
     def _generate_installments(self, outra_entrada):
         for i in range(1, outra_entrada.total_installments + 1):

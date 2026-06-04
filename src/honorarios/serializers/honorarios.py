@@ -38,13 +38,17 @@ class HonorarioSerializer(serializers.ModelSerializer):
         amount_changed = "amount" in validated_data and validated_data["amount"] != instance.amount
         installments_changed = "total_installments" in validated_data and validated_data["total_installments"] != instance.total_installments
         date_changed = "date" in validated_data and validated_data["date"] != instance.date
+        new_status = validated_data.get("status")
+        status_changed = new_status is not None and new_status != instance.status
 
         instance = super().update(instance, validated_data)
 
         if amount_changed or installments_changed or date_changed:
             instance.installments.all().delete()
             self._generate_installments(instance)
-            
+        elif status_changed:
+            instance.installments.all().update(status=new_status)
+
         return instance
 
     def _generate_installments(self, honorario):
