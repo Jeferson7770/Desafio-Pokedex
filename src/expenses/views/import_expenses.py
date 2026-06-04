@@ -2,10 +2,48 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
+from decimal import Decimal, InvalidOperation
+
 from ..serializers.expenses import ExpenseSerializer
+from ..models.expenses import Expense
 
 class ExpenseImportView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def _normalize_payload(self, item):
+        normalized = dict(item)
+
+        normalized["is_active"] = True
+
+        if normalized.get("category") is None:
+            normalized["category"] = Expense.Category.OPERACIONAL
+
+        installment_value = normalized.get("installment_value")
+        total_installments = normalized.get("total_installments", 1)
+
+        if installment_value is not None:
+            try:
+                installment_value_decimal = Decimal(str(installment_value))
+                total_installments_int = int(total_installments)
+            except (InvalidOperation, ValueError, TypeError):
+                raise ValueError("installment_value e total_installments devem ser numéricos válidos.")
+
+            if total_installments_int < 1:
+                raise ValueError("total_installments deve ser maior ou igual a 1.")
+
+            expected_amount = (installment_value_decimal * total_installments_int).quantize(Decimal("0.01"))
+
+            try:
+                amount_decimal = Decimal(str(normalized.get("amount"))).quantize(Decimal("0.01"))
+            except (InvalidOperation, TypeError):
+                raise ValueError("amount deve ser um número válido.")
+
+            if amount_decimal != expected_amount:
+                raise ValueError("amount deve ser igual a installment_value * total_installments.")
+
+            normalized["is_installment"] = total_installments_int >= 2
+
+        return normalized
 
     def _get_user_firm(self, user):
         membership = user.firm_memberships.first()
@@ -46,7 +84,16 @@ class ExpenseImportView(APIView):
                 })
                 continue
 
-            serializer = ExpenseSerializer(data=item)
+            try:
+                normalized_item = self._normalize_payload(item)
+            except ValueError as e:
+                error_items.append({
+                    "index": index,
+                    "detail": str(e)
+                })
+                continue
+
+            serializer = ExpenseSerializer(data=normalized_item)
             
             if serializer.is_valid():
                 try:

@@ -36,7 +36,6 @@ class Process(models.Model):
     firm = models.ForeignKey("firms.Firm", on_delete=models.CASCADE, related_name="cases")
     client = models.ForeignKey("cases.Client", on_delete=models.SET_NULL, related_name="processes", null=True, blank=True)
 
-    # Legacy field kept for compatibility with old payloads.
     client_name = models.CharField(max_length=255, blank=True, default="")
     title = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ATIVO)
@@ -61,5 +60,4 @@ class Process(models.Model):
         return self.title
 
 
-# Legacy alias to keep old imports working without creating a new model state.
 Case = Process

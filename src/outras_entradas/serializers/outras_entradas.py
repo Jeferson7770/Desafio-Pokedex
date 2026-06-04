@@ -92,7 +92,6 @@ class OutraEntradaSerializer(serializers.ModelSerializer):
         return outra_entrada
 
     def update(self, instance, validated_data):
-        # Entradas parceladas têm status controlado exclusivamente pelas parcelas.
         if instance.is_installment and "status" in validated_data:
             raise serializers.ValidationError(
                 {"status": "Para entradas parceladas, atualize o status por parcela."}

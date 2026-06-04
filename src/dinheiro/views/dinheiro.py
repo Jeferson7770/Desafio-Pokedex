@@ -175,7 +175,6 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     else:
                         nome_exibicao = nome_instituicao
 
-                    # availableBalance tende a refletir PIX/transferências mais rápido.
                     saldo_atual = conta.get("availableBalance")
                     if saldo_atual is None:
                         saldo_atual = conta.get("balance")

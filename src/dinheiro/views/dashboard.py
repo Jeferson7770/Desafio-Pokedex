@@ -1,4 +1,3 @@
-# Crie ou adicione em seu arquivo de views/viewsets correspondente ao módulo financeiro/dashboard
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
