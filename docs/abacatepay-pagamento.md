@@ -108,7 +108,7 @@ Comportamento atual:
 Request para o backend:
 
 ```http
-POST <endpoint-interno-de-checkout>
+POST /api/auth/subscription/checkout/
 Authorization: Bearer <token JWT>
 Content-Type: application/json
 ```
@@ -134,7 +134,7 @@ Response esperada (`200`):
 No frontend, apos receber `checkout_url`, redirecione imediatamente:
 
 ```ts
-const response = await api.post('/api/auth/.../checkout', { plan_id });
+const response = await api.post('/api/auth/subscription/checkout/', { plan_id });
 const { checkout_url } = response.data;
 
 if (!checkout_url) {
