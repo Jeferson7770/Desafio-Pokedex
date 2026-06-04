@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "src.motor",
     "src.users",
     "src.honorarios",
+    "src.outras_entradas",
     "src.suggestions",
     "drf_spectacular",
 ]
