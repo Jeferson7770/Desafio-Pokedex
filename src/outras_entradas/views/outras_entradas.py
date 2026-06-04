@@ -22,6 +22,9 @@ class OutraEntradaViewSet(viewsets.ModelViewSet):
         firm = self._get_user_firm(self.request.user)
         queryset = OutraEntrada.objects.filter(firm=firm).prefetch_related("installments")
 
+        if self.action != "list":
+            return queryset
+
         year = self.request.query_params.get("year")
         month = self.request.query_params.get("month")
         start_date = self.request.query_params.get("start_date")

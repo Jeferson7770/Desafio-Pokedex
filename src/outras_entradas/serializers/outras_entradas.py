@@ -92,26 +92,30 @@ class OutraEntradaSerializer(serializers.ModelSerializer):
         return outra_entrada
 
     def update(self, instance, validated_data):
+        is_now_installment = validated_data.get("is_installment", instance.is_installment)
+        converting_to_installment = not instance.is_installment and is_now_installment
+
         if instance.is_installment and "status" in validated_data:
             raise serializers.ValidationError(
                 {"status": "Para entradas parceladas, atualize o status por parcela."}
             )
 
-        if instance.is_installment and any(
-            key in validated_data for key in ["is_installment", "total_installments", "installment_value"]
-        ):
-            raise serializers.ValidationError(
-                {
-                    "detail": "Não é permitido alterar estrutura de parcelamento após a criação."
-                }
-            )
-
         new_status = validated_data.get("status")
         status_changed = new_status is not None and new_status != instance.status
 
+        if converting_to_installment:
+            validated_data["status"] = OutraEntrada.Status.PENDENTE
+
+        structure_changed = instance.is_installment and any(
+            key in validated_data for key in ["total_installments", "installment_value", "date", "amount"]
+        )
+
         instance = super().update(instance, validated_data)
 
-        if status_changed and not instance.is_installment:
+        if converting_to_installment or structure_changed:
+            instance.installments.all().delete()
+            self._generate_installments(instance)
+        elif status_changed and not instance.is_installment:
             instance.installments.all().update(status=new_status)
 
         return instance
