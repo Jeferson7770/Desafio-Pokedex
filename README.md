@@ -6,6 +6,31 @@ Somos uma empresa privada e operamos este produto em ambiente real. Este reposit
 
 Queremos atrair devs que curtam resolver problemas reais de produto B2B financeiro. Contribuidores consistentes entram no nosso radar para contratacao.
 
+## Nossa visao open source
+
+A Fince e uma startup em fase de crescimento. Escolhemos o modelo open source para construir tecnologia de longo prazo com:
+
+- transparencia tecnica para gerar confianca no produto
+- colaboracao da comunidade para acelerar qualidade e inovacao
+- padroes abertos para facilitar integracoes e auditoria
+- formacao de um ecossistema em torno de uma base comum
+
+Nao abrimos codigo por marketing. Abrimos porque nosso produto melhora quando o desenvolvimento e publico, revisavel e orientado por problemas reais de quem usa e integra a plataforma.
+
+## Licenciamento AGPLv3
+
+Este projeto e licenciado sob a GNU Affero General Public License v3.0 (AGPLv3), com a opcao "or later".
+
+O que isso significa na pratica:
+
+- voce pode usar, estudar, modificar e redistribuir este codigo
+- se voce distribuir versoes modificadas, precisa manter o mesmo licenciamento
+- se voce operar uma versao modificada como servico via rede, deve disponibilizar o codigo-fonte correspondente para os usuarios desse servico
+
+Arquivo oficial de licenca: `LICENSE`.
+
+Se sua empresa precisa de termos diferentes para distribuicao/compliance, fale com o time da Fince antes de usar em producao.
+
 ## O que o projeto resolve
 
 FinceCore centraliza o motor de negocio para:
@@ -248,6 +273,12 @@ Como contribuir:
 
 Se voce quer contribuir e tambem entrar no nosso pipeline de contratacao, abra PRs consistentes e participe das discussoes tecnicas.
 
+## Comunidade e conduta
+
+Queremos crescer como startup sem abrir mao de respeito, colaboracao e ambiente seguro para contribuir.
+
+Leia nosso codigo de conduta em `CODE_OF_CONDUCT.md` antes de participar de discussoes, issues e pull requests.
+
 ## Documentacao adicional
 
 - `docs/users-api.md`
@@ -259,4 +290,7 @@ Se voce quer contribuir e tambem entrar no nosso pipeline de contratacao, abra P
 
 ## Licenca
 
-Consulte o arquivo de licenca do repositorio para os termos de uso.
+Distribuido sob AGPLv3-or-later.
+
+- Texto completo: `LICENSE`
+- Conduta da comunidade: `CODE_OF_CONDUCT.md`

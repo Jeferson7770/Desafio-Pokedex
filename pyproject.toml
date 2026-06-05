@@ -3,6 +3,7 @@ name = "fincecore"
 version = "0.1.0"
 description = "Fince Core Backend"
 authors = ["Fince Team"]
+license = "AGPL-3.0-or-later"
 package-mode = false
 
 [tool.poetry.dependencies]
