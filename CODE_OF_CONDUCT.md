@@ -72,7 +72,7 @@ Decisoes de moderacao podem incluir:
 
 Se voce presenciar ou sofrer violacao deste Codigo de Conduta:
 
-- envie um relato para: opensource@fince.com.br
+- envie um relato para: opensource@suafince.com.br
 - inclua, se possivel, links, prints, contexto e data aproximada
 - sinalize se existe risco imediato para alguem
 

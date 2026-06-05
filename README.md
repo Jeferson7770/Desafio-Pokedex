@@ -279,6 +279,18 @@ Queremos crescer como startup sem abrir mao de respeito, colaboracao e ambiente 
 
 Leia nosso codigo de conduta em `CODE_OF_CONDUCT.md` antes de participar de discussoes, issues e pull requests.
 
+## Open source governance
+
+Documentos oficiais para contribuicao, seguranca e politicas do projeto:
+
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- `GOVERNANCE.md`
+- `COPYRIGHT.md`
+- `TRADEMARKS.md`
+- `DCO.md`
+- `SUPPORT.md`
+
 ## Documentacao adicional
 
 - `docs/users-api.md`

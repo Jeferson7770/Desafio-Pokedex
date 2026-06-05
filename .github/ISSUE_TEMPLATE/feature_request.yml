@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a feature aligned with project direction
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user or product problem are you solving?
+      placeholder: Describe pain and context
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior and expected outcome
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other options and why they are not preferred
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and impact
+      description: API, data model, security, migration, or operational impact
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked for existing issues and discussions
+          required: true
+        - label: This proposal is compatible with AGPL open source model
+          required: true
