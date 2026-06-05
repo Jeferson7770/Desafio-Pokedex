@@ -13,6 +13,56 @@ from ...users.utils.telemetry import track_event
 class CriarAssinaturaView(APIView):
     permission_classes = [IsAuthenticated]
 
+    LEGACY_INTERVAL_TO_CYCLE = {
+        "ANNUAL": Plan.CycleType.ANNUALLY,
+        "MONTHLY": Plan.CycleType.MONTHLY,
+    }
+
+    def _sync_plan_from_legacy_gateway_id(self, gateway_plan_id):
+        """
+        Compatibilidade com a modelagem antiga de billing em `src.users.models.billing`.
+        Se encontrar o plano legado, cria/atualiza o plano equivalente em `firms.Plan`.
+        """
+        try:
+            from ...users.models.billing import Plan as LegacyPlan
+        except Exception:
+            return None
+
+        legacy_plan = LegacyPlan.objects.filter(
+            gateway_plan_id=gateway_plan_id,
+            is_active=True,
+        ).first()
+        if not legacy_plan:
+            return None
+
+        cycle = self.LEGACY_INTERVAL_TO_CYCLE.get(legacy_plan.interval, Plan.CycleType.MONTHLY)
+        plan, _ = Plan.objects.update_or_create(
+            abacatepay_product_id=gateway_plan_id,
+            defaults={
+                "name": legacy_plan.name,
+                "price": legacy_plan.price,
+                "cycle": cycle,
+                "is_active": legacy_plan.is_active,
+            },
+        )
+        return plan
+
+    def _bootstrap_plan_from_gateway_product_id(self, gateway_product_id):
+        """
+        Quando o frontend manda apenas o product id do gateway (prod_*),
+        garantimos um plano local minimo para viabilizar o fluxo de checkout.
+        """
+        plan, _ = Plan.objects.get_or_create(
+            abacatepay_product_id=gateway_product_id,
+            defaults={
+                "name": f"Gateway {gateway_product_id[:40]}",
+                "price": "0.00",
+                "cycle": Plan.CycleType.MONTHLY,
+                "is_active": True,
+            },
+        )
+        return plan
+
     def _get_active_plan(self, plan_identifier):
         """
         Aceita tanto o ID numerico do plano quanto o ID textual do produto no gateway.
@@ -25,9 +75,19 @@ class CriarAssinaturaView(APIView):
             return None
 
         if plan_identifier_str.isdigit():
-            return Plan.objects.filter(id=int(plan_identifier_str), is_active=True).first()
+            plan = Plan.objects.filter(id=int(plan_identifier_str), is_active=True).first()
+            if plan:
+                return plan
 
-        return Plan.objects.filter(abacatepay_product_id=plan_identifier_str, is_active=True).first()
+            # Fallback: tenta resolver no modelo legado e sincronizar para firms.Plan.
+            return self._sync_plan_from_legacy_gateway_id(plan_identifier_str)
+
+        plan = Plan.objects.filter(abacatepay_product_id=plan_identifier_str, is_active=True).first()
+        if plan:
+            return plan
+
+        # Fallback para bases antigas que ainda guardam plano em users.Plan.gateway_plan_id.
+        return self._sync_plan_from_legacy_gateway_id(plan_identifier_str)
 
     def post(self, request):
         plan_id = request.data.get("plan_id")
@@ -39,7 +99,11 @@ class CriarAssinaturaView(APIView):
             )
             raise ValidationError({"plan_id": "Este campo é obrigatório para iniciar a assinatura."})
 
-        plan = self._get_active_plan(plan_id)
+        plan_identifier = str(plan_id).strip()
+        plan = self._get_active_plan(plan_identifier)
+        if not plan and plan_identifier.startswith("prod_"):
+            plan = self._bootstrap_plan_from_gateway_product_id(plan_identifier)
+
         if not plan:
             track_event(
                 user=request.user,
