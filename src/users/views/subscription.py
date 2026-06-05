@@ -13,6 +13,22 @@ from ...users.utils.telemetry import track_event
 class CriarAssinaturaView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def _get_active_plan(self, plan_identifier):
+        """
+        Aceita tanto o ID numerico do plano quanto o ID textual do produto no gateway.
+        """
+        if plan_identifier is None:
+            return None
+
+        plan_identifier_str = str(plan_identifier).strip()
+        if not plan_identifier_str:
+            return None
+
+        if plan_identifier_str.isdigit():
+            return Plan.objects.filter(id=int(plan_identifier_str), is_active=True).first()
+
+        return Plan.objects.filter(abacatepay_product_id=plan_identifier_str, is_active=True).first()
+
     def post(self, request):
         plan_id = request.data.get("plan_id")
         if not plan_id:
@@ -23,9 +39,8 @@ class CriarAssinaturaView(APIView):
             )
             raise ValidationError({"plan_id": "Este campo é obrigatório para iniciar a assinatura."})
 
-        try:
-            plan = Plan.objects.get(id=plan_id, is_active=True)
-        except Plan.DoesNotExist:
+        plan = self._get_active_plan(plan_id)
+        if not plan:
             track_event(
                 user=request.user,
                 event_name="assinatura_checkout_falha",
