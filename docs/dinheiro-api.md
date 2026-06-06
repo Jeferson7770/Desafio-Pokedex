@@ -12,9 +12,9 @@ Content-Type: application/json
 Base URLs:
 
 ```text
-/api/dinheiro/accounts/
-/api/dinheiro/transactions/
-/api/dinheiro/dashboard-summary/
+/api/finance/accounts/
+/api/finance/transactions/
+/api/finance/dashboard-summary/
 ```
 
 ---
@@ -49,7 +49,7 @@ Tipos de conta (`account_type`):
 ### 2.2 Listar contas
 
 ```http
-GET /api/dinheiro/accounts/
+GET /api/finance/accounts/
 ```
 
 Retorna apenas as contas da firm do usuario autenticado.
@@ -57,7 +57,7 @@ Retorna apenas as contas da firm do usuario autenticado.
 ### 2.3 Criar conta manual
 
 ```http
-POST /api/dinheiro/accounts/
+POST /api/finance/accounts/
 ```
 
 ```json
@@ -73,7 +73,7 @@ POST /api/dinheiro/accounts/
 ### 2.4 Atualizar conta
 
 ```http
-PATCH /api/dinheiro/accounts/{id}/
+PATCH /api/finance/accounts/{id}/
 ```
 
 `current_balance` nao pode ser alterado diretamente — e atualizado via transacoes.
@@ -81,7 +81,7 @@ PATCH /api/dinheiro/accounts/{id}/
 ### 2.5 Remover conta
 
 ```http
-DELETE /api/dinheiro/accounts/{id}/
+DELETE /api/finance/accounts/{id}/
 ```
 
 ---
@@ -91,7 +91,7 @@ DELETE /api/dinheiro/accounts/{id}/
 ### 3.1 Gerar connect token
 
 ```http
-POST /api/dinheiro/accounts/pluggy/connect-token/
+POST /api/finance/accounts/pluggy/connect-token/
 ```
 
 Retorna um token temporario para abrir o widget de conexao bancaria no frontend.
@@ -109,7 +109,7 @@ Use esse token no widget do Pluggy para o usuario conectar a conta bancaria.
 ### 3.2 Sincronizar contas
 
 ```http
-POST /api/dinheiro/accounts/pluggy/sincronizar/
+POST /api/finance/accounts/pluggy/sincronizar/
 ```
 
 ```json
@@ -144,7 +144,7 @@ Resposta `202` (ainda processando):
 ### 3.3 Atualizar saldos do dashboard
 
 ```http
-POST /api/dinheiro/accounts/pluggy/atualizar-dashboard/
+POST /api/finance/accounts/pluggy/atualizar-dashboard/
 ```
 
 Rota auxiliar. Retorna mensagem de confirmacao sem bloquear.
@@ -182,13 +182,13 @@ Tipos de transacao:
 ### 4.2 Listar transacoes
 
 ```http
-GET /api/dinheiro/transactions/
+GET /api/finance/transactions/
 ```
 
 ### 4.3 Criar transacao manual
 
 ```http
-POST /api/dinheiro/transactions/
+POST /api/finance/transactions/
 ```
 
 ```json
@@ -210,7 +210,7 @@ Restricao: nao e possivel vincular `expense_installment` e `fee_installment` ao 
 ### 4.4 Remover transacao
 
 ```http
-DELETE /api/dinheiro/transactions/{id}/
+DELETE /api/finance/transactions/{id}/
 ```
 
 O `current_balance` da conta e revertido automaticamente.
@@ -218,7 +218,7 @@ O `current_balance` da conta e revertido automaticamente.
 ### 4.5 Resumo de fluxo de caixa
 
 ```http
-GET /api/dinheiro/transactions/cash-flow-summary/
+GET /api/finance/transactions/cash-flow-summary/
 ```
 
 Resposta:
@@ -240,8 +240,8 @@ Resposta:
 ## 5. Dashboard de resumo financeiro
 
 ```http
-GET /api/dinheiro/dashboard-summary/
-GET /api/dinheiro/dashboard-summary/?year=2026&month=6
+GET /api/finance/dashboard-summary/
+GET /api/finance/dashboard-summary/?year=2026&month=6
 ```
 
 Parametros opcionais: `year` e `month`. Se omitidos, usa o mes atual.

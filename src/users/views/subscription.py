@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from django.db import transaction
 
-from ...dinheiro.services.abacatepay import AbacatePayService
+from ...finance.services.abacatepay import AbacatePayService
 from ...firms.models.subscription import Plan, FirmSubscription
 from ...users.utils.telemetry import track_event
 

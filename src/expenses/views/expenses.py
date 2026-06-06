@@ -8,8 +8,8 @@ from django.db.models.functions import ExtractYear, ExtractMonth
 import datetime
 
 from ..models.expenses import Expense, ParcelaDespesa
-from ...honorarios.models.honorarios import ParcelaHonorario
-from ...dinheiro.models.dinheiro import BankAccount
+from ...fees.models.honorarios import ParcelaHonorario
+from ...finance.models.dinheiro import BankAccount
 from ..serializers.expenses import ExpenseSerializer, ExpenseDeferralSerializer
 from ...users.utils.telemetry import track_event
 

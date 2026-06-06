@@ -14,13 +14,13 @@ Content-Type: application/json
 Base URL:
 
 ```text
-/api/outras-entradas/
+/api/other-income/
 ```
 
 ## 2. Regras importantes antes de integrar
 
 1. Multi-tenant por firm: o backend sempre usa a firm do usuario autenticado.
-2. O filtro de data e obrigatorio apenas na listagem (`GET /api/outras-entradas/`). Endpoints de detalhe, atualizacao e delete nao exigem filtro.
+2. O filtro de data e obrigatorio apenas na listagem (`GET /api/other-income/`). Endpoints de detalhe, atualizacao e delete nao exigem filtro.
 3. Na listagem, envie apenas um tipo de filtro:
    - `year` + `month` juntos, ou
    - `start_date` + `end_date` juntos.
@@ -38,13 +38,13 @@ Base URL:
 ### 3.1 Filtro por mes/ano
 
 ```http
-GET /api/outras-entradas/?year=2026&month=6
+GET /api/other-income/?year=2026&month=6
 ```
 
 ### 3.2 Filtro por periodo
 
 ```http
-GET /api/outras-entradas/?start_date=2026-06-01&end_date=2026-06-30
+GET /api/other-income/?start_date=2026-06-01&end_date=2026-06-30
 ```
 
 ### 3.3 Erros comuns no GET
@@ -59,7 +59,7 @@ GET /api/outras-entradas/?start_date=2026-06-01&end_date=2026-06-30
 ### 4.1 Entrada sem parcelamento
 
 ```http
-POST /api/outras-entradas/
+POST /api/other-income/
 ```
 
 Body:
@@ -81,7 +81,7 @@ Body:
 ### 4.2 Entrada parcelada
 
 ```http
-POST /api/outras-entradas/
+POST /api/other-income/
 ```
 
 Body:
@@ -112,7 +112,7 @@ Comportamento do backend:
 ## 5. Atualizar header (PATCH)
 
 ```http
-PATCH /api/outras-entradas/{id}/
+PATCH /api/other-income/{id}/
 ```
 
 ### 5.1 Atualizar campos simples (nao parcelado)
@@ -166,7 +166,7 @@ Obs.: em registro parcelado, `status` deve ser alterado por parcela individualme
 ## 6. Atualizar parcela individual (PATCH)
 
 ```http
-PATCH /api/outras-entradas/{id}/installments/{installment_id}/
+PATCH /api/other-income/{id}/installments/{installment_id}/
 ```
 
 ### 6.1 Marcar como recebido
@@ -192,7 +192,7 @@ Apos esse PATCH, o backend recalcula automaticamente o `status` do header.
 ## 7. Remover entrada (DELETE)
 
 ```http
-DELETE /api/outras-entradas/{id}/
+DELETE /api/other-income/{id}/
 ```
 
 Comportamento:
@@ -204,7 +204,7 @@ Comportamento:
 ## 8. Importacao em lote (POST)
 
 ```http
-POST /api/outras-entradas/import/
+POST /api/other-income/import/
 ```
 
 Body esperado: array de objetos.

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from ..models.laywer import LawyerProfile
 from ..models.device import UserDevice
-from ...dinheiro.models.dinheiro import BankAccount
+from ...finance.models.dinheiro import BankAccount
 
 from .billing import SubscriptionSerializer 
 from .notifications import NotificationSettingSerializer 

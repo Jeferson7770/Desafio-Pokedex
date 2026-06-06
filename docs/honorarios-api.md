@@ -14,7 +14,7 @@ Content-Type: application/json
 Base URL:
 
 ```text
-/api/honorarios/
+/api/fees/
 ```
 
 ## 2. Regras importantes antes de integrar
@@ -70,9 +70,9 @@ Base URL:
 ## 4. Listar honorarios (GET)
 
 ```http
-GET /api/honorarios/
-GET /api/honorarios/?year=2026&month=6
-GET /api/honorarios/?year=2026
+GET /api/fees/
+GET /api/fees/?year=2026&month=6
+GET /api/fees/?year=2026
 ```
 
 Filtro e opcional. Quando informado, filtra pelos honorarios que possuem pelo menos uma parcela com `due_date` no periodo.
@@ -90,7 +90,7 @@ Resposta `200`:
 ### 5.1 Honorario sem parcelamento
 
 ```http
-POST /api/honorarios/
+POST /api/fees/
 ```
 
 ```json
@@ -141,7 +141,7 @@ Resposta `201`:
 ## 6. Atualizar honorario (PATCH)
 
 ```http
-PATCH /api/honorarios/{id}/
+PATCH /api/fees/{id}/
 ```
 
 ### 6.1 Alterar campos simples
@@ -177,7 +177,7 @@ Todas as parcelas existentes serao deletadas e recriadas com a nova estrutura.
 ## 7. Atualizar parcela individual (PATCH)
 
 ```http
-PATCH /api/honorarios/{id}/installments/{installment_id}/
+PATCH /api/fees/{id}/installments/{installment_id}/
 ```
 
 ### 7.1 Marcar como recebida
@@ -203,7 +203,7 @@ O backend nao recalcula o status do header automaticamente neste endpoint — ap
 ## 8. Remover honorario (DELETE)
 
 ```http
-DELETE /api/honorarios/{id}/
+DELETE /api/fees/{id}/
 ```
 
 Remove o honorario e todas as parcelas em cascata. Retorna `204 No Content`.
@@ -211,7 +211,7 @@ Remove o honorario e todas as parcelas em cascata. Retorna `204 No Content`.
 ## 9. Importacao em lote (POST)
 
 ```http
-POST /api/honorarios/import/
+POST /api/fees/import/
 ```
 
 Body: array de objetos com a mesma estrutura do POST individual.

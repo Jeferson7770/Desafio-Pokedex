@@ -21,15 +21,15 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "src.cases",
-    "src.relatorios",
+    "src.reports",
     "src.expenses",
     "src.firms",
-    "src.dinheiro",
-    "src.prolabore",
+    "src.finance",
+    "src.payroll",
     "src.motor",
     "src.users",
-    "src.honorarios",
-    "src.outras_entradas",
+    "src.fees",
+    "src.other_income",
     "src.suggestions",
     "drf_spectacular",
 ]
@@ -57,7 +57,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Fince',
-    'DESCRIPTION': 'Documentação da Fince API',
+    'DESCRIPTION': 'Fince API Documentation',
     'VERSION': '1.0.0',
 }
 

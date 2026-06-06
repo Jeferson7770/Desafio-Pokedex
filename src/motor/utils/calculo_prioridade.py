@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django.db import transaction as db_transaction
 import datetime
-from ...dinheiro.models.dinheiro import BankAccount
+from ...finance.models.dinheiro import BankAccount
 from ...expenses.models.expenses import ParcelaDespesa
 from ..models.motor import SimulacaoPrioridade, ItemSimulacaoPrioridade
 
