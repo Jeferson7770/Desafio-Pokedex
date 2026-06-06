@@ -3,8 +3,8 @@ from django.db import models
 
 class Client(models.Model):
     class Tipo(models.TextChoices):
-        PF = "PF", "Pessoa Fisica"
-        PJ = "PJ", "Pessoa Juridica"
+        PF = "PF", "Individual"
+        PJ = "PJ", "Legal Entity"
 
     firm = models.ForeignKey("firms.Firm", on_delete=models.CASCADE, related_name="clients")
     name = models.CharField(max_length=255)
@@ -30,8 +30,8 @@ class Process(models.Model):
         HYBRID = "HYBRID"
 
     class Status(models.TextChoices):
-        ATIVO = "ATIVO", "Ativo"
-        CONCLUIDO = "CONCLUIDO", "Concluido"
+        ATIVO = "ATIVO", "Active"
+        CONCLUIDO = "CONCLUIDO", "Completed"
 
     firm = models.ForeignKey("firms.Firm", on_delete=models.CASCADE, related_name="cases")
     client = models.ForeignKey("cases.Client", on_delete=models.SET_NULL, related_name="processes", null=True, blank=True)

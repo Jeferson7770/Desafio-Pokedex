@@ -2,8 +2,8 @@ from django.db import models
 
 class Firm(models.Model):
     class FirmType(models.TextChoices):
-        SOLO = "SOLO", "Individual"
-        OFFICE = "OFFICE", "Escritório Coletivo"
+        SOLO = "SOLO", "Solo"
+        OFFICE = "OFFICE", "Shared Office"
 
     name = models.CharField(max_length=255)
     type = models.CharField(max_length=20, choices=FirmType.choices)

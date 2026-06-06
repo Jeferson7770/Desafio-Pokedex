@@ -3,8 +3,8 @@ from django.conf import settings
 
 class Plan(models.Model):
     INTERVAL_CHOICES = [
-        ("MONTHLY", "Mensal"),
-        ("ANNUAL", "Anual"),
+        ("MONTHLY", "Monthly"),
+        ("ANNUAL", "Annual"),
     ]
 
     name = models.CharField(max_length=100)
@@ -21,10 +21,10 @@ class Plan(models.Model):
 
 class Subscription(models.Model):
     STATUS_CHOICES = [
-        ("ACTIVE", "Ativa"),
-        ("CANCELED", "Cancelada"),
-        ("PAST_DUE", "Inadimplente (Erro de pagamento)"),
-        ("TRIALING", "Período de Testes"),
+        ("ACTIVE", "Active"),
+        ("CANCELED", "Canceled"),
+        ("PAST_DUE", "Past Due (Payment Error)"),
+        ("TRIALING", "Trial Period"),
     ]
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subscription")
@@ -44,14 +44,11 @@ class Subscription(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Assinatura de {self.user.email} - Status: {self.status}"
+        return f"Subscription for {self.user.email} - Status: {self.status}"
 
     @property
     def is_valid(self):
-        """
-        Dita se o advogado tem direito a usar os recursos PRO do app.
-        Mesmo se estiver cancelado, se ainda estiver dentro do prazo pago, ele acessa.
-        """
+        """Indicates whether the user is allowed to access premium features."""
         from django.utils import timezone
         if self.status in ["ACTIVE", "TRIALING"]:
             return True

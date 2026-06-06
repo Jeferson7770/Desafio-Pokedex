@@ -4,27 +4,27 @@ from decimal import Decimal
 
 class Expense(models.Model):
     class Frequency(models.TextChoices):
-        ONE_TIME = "ONE_TIME", "Única"
-        MONTHLY = "MONTHLY", "Mensal"
-        YEARLY = "ANNUAL", "Anual"
+        ONE_TIME = "ONE_TIME", "One-time"
+        MONTHLY = "MONTHLY", "Monthly"
+        YEARLY = "ANNUAL", "Annual"
 
     class Category(models.TextChoices):
-        ESTRUTURA = "ESTRUTURA", "Estrutura"
-        PESSOAS = "PESSOAS", "Pessoas"
-        IMPOSTOS = "IMPOSTOS", "Impostos"
-        OPERACIONAL = "OPERACIONAL", "Operacional"
+        ESTRUTURA = "ESTRUTURA", "Infrastructure"
+        PESSOAS = "PESSOAS", "People"
+        IMPOSTOS = "IMPOSTOS", "Taxes"
+        OPERACIONAL = "OPERACIONAL", "Operational"
 
     class Priority(models.TextChoices):
-        LEGAL = "LEGAL", "Legal / Crítico"
-        OPERACIONAL = "OPERACIONAL", "Operacional"
-        OPCIONAL = "OPCIONAL", "Opcional"
+        LEGAL = "LEGAL", "Legal / Critical"
+        OPERACIONAL = "OPERACIONAL", "Operational"
+        OPCIONAL = "OPCIONAL", "Optional"
 
     firm = models.ForeignKey("firms.Firm", on_delete=models.CASCADE, related_name="expenses")
     
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    amount = models.DecimalField(max_digits=12, decimal_places=2, help_text="Valor total da despesa")
-    due_date = models.DateField(help_text="Data base ou primeiro vencimento")
+    amount = models.DecimalField(max_digits=12, decimal_places=2, help_text="Total expense amount")
+    due_date = models.DateField(help_text="Base date or first due date")
     
     frequency = models.CharField(max_length=20, choices=Frequency.choices, default=Frequency.ONE_TIME)
     category = models.CharField(max_length=30, choices=Category.choices, default=Category.OPERACIONAL)

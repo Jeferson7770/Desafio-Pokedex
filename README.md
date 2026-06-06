@@ -65,7 +65,7 @@ Base: `/api/firms/`
 - dashboard financeiro consolidado
 - sincronizacao com Open Finance (Pluggy)
 
-Base: `/api/dinheiro/`
+Base: `/api/finance/`
 
 ### Gestao financeira juridica
 
@@ -78,10 +78,10 @@ Bases:
 
 - `/api/expenses/`
 - `/api/cases/`
-- `/api/honorarios/`
-- `/api/prolabore/`
-- `/api/relatorios/`
-- `/api/outras-entradas/`
+- `/api/fees/`
+- `/api/payroll/`
+- `/api/reports/`
+- `/api/other-income/`
 
 ### Produto e feedback
 
@@ -265,7 +265,7 @@ Buscamos devs que demonstrem:
 
 Como contribuir:
 
-1. Faça fork do repositorio.
+1. Fork the repository.
 2. Crie uma branch (`feature/*`, `fix/*` ou `chore/*`).
 3. Implemente sua melhoria com contexto tecnico no commit.
 4. Abra PR para `main` explicando problema, solucao e impacto.

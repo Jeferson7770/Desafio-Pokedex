@@ -2,10 +2,10 @@ from django.db import models
 
 class Suggestion(models.Model):
     class Category(models.TextChoices):
-        MELHORIA = "MELHORIA", "Melhoria de Funcionalidade"
-        NOVA_FUNC = "NOVA_FUNC", "Nova Funcionalidade"
-        BUG = "BUG", "Relato de Bug"
-        OUTRO = "OUTRO", "Outro"
+        MELHORIA = "MELHORIA", "Feature Improvement"
+        NOVA_FUNC = "NOVA_FUNC", "New Feature"
+        BUG = "BUG", "Bug Report"
+        OUTRO = "OUTRO", "Other"
 
     firm = models.ForeignKey(
         "firms.Firm", 

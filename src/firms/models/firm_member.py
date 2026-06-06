@@ -3,9 +3,9 @@ from src.firms.models.firm_structure import Firm
 
 class FirmMember(models.Model):
     class Role(models.TextChoices):
-        OWNER = "OWNER", "Dono"
-        LAWYER = "LAWYER", "Advogado Associado"
-        STAFF = "STAFF", "Equipe de Apoio"
+        OWNER = "OWNER", "Owner"
+        LAWYER = "LAWYER", "Associate Lawyer"
+        STAFF = "STAFF", "Support Staff"
 
     firm = models.ForeignKey(Firm, on_delete=models.CASCADE, related_name="members")
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="firm_memberships")

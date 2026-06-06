@@ -9,9 +9,9 @@ class NotificationSetting(models.Model):
     )
     
     enable_due_alerts = models.BooleanField(default=True)
-    days_advance_taxes = models.PositiveIntegerField(default=5, help_text="Antecedência para Impostos (dias)")
-    days_advance_rent = models.PositiveIntegerField(default=3, help_text="Antecedência para Aluguel (dias)")
-    days_advance_others = models.PositiveIntegerField(default=1, help_text="Antecedência para Outros (dias)")
+    days_advance_taxes = models.PositiveIntegerField(default=5, help_text="Advance notice for taxes (days)")
+    days_advance_rent = models.PositiveIntegerField(default=3, help_text="Advance notice for rent (days)")
+    days_advance_others = models.PositiveIntegerField(default=1, help_text="Advance notice for other items (days)")
     
     enable_approval_requests = models.BooleanField(default=True)
     
@@ -21,4 +21,4 @@ class NotificationSetting(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Configurações de Notificação - {self.user.email}"
+        return f"Notification Settings - {self.user.email}"

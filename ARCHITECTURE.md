@@ -74,13 +74,13 @@ As rotas sao centralizadas em `core/urls.py` e distribuidas por base path:
 
 - `/api/auth/`
 - `/api/firms/`
-- `/api/dinheiro/`
+- `/api/finance/`
 - `/api/expenses/`
 - `/api/cases/`
-- `/api/honorarios/`
-- `/api/prolabore/`
-- `/api/outras-entradas/`
-- `/api/relatorios/`
+- `/api/fees/`
+- `/api/payroll/`
+- `/api/other-income/`
+- `/api/reports/`
 - `/api/motor/`
 - `/api/suggestions/`
 
