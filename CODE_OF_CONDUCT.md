@@ -1,118 +1,118 @@
 # CODE OF CONDUCT
 
-## Nosso compromisso
+## Our commitment
 
-A comunidade da Fince existe para construir software open source de alta qualidade para um problema real de mercado.
+The Fince community exists to build high-quality open source software for a real market problem.
 
-Somos uma startup em crescimento, e queremos crescer com responsabilidade. Isso significa manter um ambiente de colaboracao profissional, inclusivo e seguro para quem contribui, usa o projeto ou participa de qualquer espaco da comunidade.
+We are a growing startup, and we want to grow responsibly. That means maintaining a professional, inclusive, and safe environment for everyone who contributes, uses the project, or participates in any community space.
 
-Esperamos que toda interacao neste repositorio e nos canais associados seja pautada por respeito, boa-fe e foco em construir.
+We expect all interactions in this repository and related channels to be grounded in respect, good faith, and a builder mindset.
 
-## Escopo
+## Scope
 
-Este Codigo de Conduta se aplica a todos os espacos da comunidade Fince relacionados a este projeto, incluindo:
+This Code of Conduct applies to all Fince community spaces related to this project, including:
 
-- issues, pull requests e comentarios neste repositorio
-- discussoes tecnicas e canais oficiais de comunicacao
-- eventos, apresentacoes e reunioes organizadas pela equipe
-- representacao publica da comunidade por mantenedores e contribuidores
+- issues, pull requests, and comments in this repository
+- technical discussions and official communication channels
+- events, presentations, and meetings organized by the team
+- public representation of the community by maintainers and contributors
 
-## Comportamentos esperados
+## Expected behavior
 
-Contribuidores e mantenedores devem:
+Contributors and maintainers are expected to:
 
-- agir com respeito, empatia e profissionalismo
-- assumir boa intencao e pedir esclarecimentos antes de concluir
-- dar feedback tecnico claro, objetivo e acionavel
-- aceitar criticas com maturidade e foco em melhoria
-- documentar decisoes tecnicas de forma transparente
-- priorizar seguranca, privacidade e confiabilidade do produto
-- apoiar iniciantes e reduzir barreiras para novas contribuicoes
+- act with respect, empathy, and professionalism
+- assume good intent and ask for clarification before concluding
+- provide clear, objective, and actionable technical feedback
+- accept criticism with maturity and a focus on improvement
+- document technical decisions transparently
+- prioritize product security, privacy, and reliability
+- support newcomers and reduce barriers for new contributions
 
-## Comportamentos inaceitaveis
+## Unacceptable behavior
 
-Nao toleramos:
+We do not tolerate:
 
-- assedio, intimidacao, ameacas ou perseguicao
-- insultos pessoais, linguagem hostil ou ataques ad hominem
-- discriminacao de qualquer tipo (origem, genero, orientacao, religiao, deficiencia, idade, etc.)
-- divulgacao de dados pessoais sem consentimento
-- spam, trolling, flame wars ou desvio intencional de discussao
-- compartilhamento de conteudo sexualizado ou inadequado ao contexto profissional
-- qualquer conduta que comprometa a seguranca da comunidade
+- harassment, intimidation, threats, or stalking
+- personal insults, hostile language, or ad hominem attacks
+- discrimination of any kind (origin, gender, orientation, religion, disability, age, etc.)
+- disclosure of personal data without consent
+- spam, trolling, flame wars, or intentional discussion derailment
+- sharing sexualized content or content inappropriate for a professional context
+- any conduct that compromises community safety
 
-## Diretrizes para colaboracao tecnica
+## Technical collaboration guidelines
 
-Para ajudar a comunidade a escalar com qualidade, pedimos:
+To help the community scale with quality, we ask that you:
 
-- descreva o problema com contexto real e impacto
-- proponha mudancas pequenas, testaveis e bem documentadas
-- mantenha discussoes focadas no merito tecnico e no impacto para usuarios
-- evite gatekeeping: explique decisoes e compartilhe racional tecnico
-- respeite revisoes e ciclos de feedback
+- describe problems with real context and impact
+- propose small, testable, and well-documented changes
+- keep discussions focused on technical merit and user impact
+- avoid gatekeeping: explain decisions and share technical rationale
+- respect reviews and feedback cycles
 
-## Responsabilidades dos mantenedores
+## Maintainer responsibilities
 
-Mantenedores da Fince se comprometem a:
+Fince maintainers commit to:
 
-- aplicar este Codigo de Conduta de forma consistente e imparcial
-- comunicar expectativas de forma clara
-- tratar incidentes com seriedade, confidencialidade e respeito
-- justificar medidas de moderacao quando apropriado
-- proteger a comunidade de condutas nocivas
+- enforcing this Code of Conduct consistently and fairly
+- communicating expectations clearly
+- handling incidents with seriousness, confidentiality, and respect
+- justifying moderation actions when appropriate
+- protecting the community from harmful behavior
 
-Decisoes de moderacao podem incluir:
+Moderation decisions may include:
 
-- orientacao e pedido de ajuste de comportamento
-- edicao/ocultacao de conteudo inadequado
-- bloqueio temporario de interacoes
-- suspensao ou banimento em casos graves ou reincidentes
+- guidance and requests for behavior adjustment
+- editing or hiding inappropriate content
+- temporary interaction restrictions
+- suspension or ban in severe or repeated cases
 
-## Como reportar incidentes
+## How to report incidents
 
-Se voce presenciar ou sofrer violacao deste Codigo de Conduta:
+If you witness or experience a violation of this Code of Conduct:
 
-- envie um relato para: opensource@suafince.com.br
-- inclua, se possivel, links, prints, contexto e data aproximada
-- sinalize se existe risco imediato para alguem
+- send a report to: opensource@suafince.com.br
+- include, when possible, links, screenshots, context, and an approximate date
+- indicate whether there is immediate risk to anyone
 
-Vamos analisar cada relato com prioridade razoavel e buscar uma resposta proporcional ao caso.
+We will review each report with reasonable priority and seek a response proportional to the case.
 
-## Processo de avaliacao
+## Evaluation process
 
-Ao receber um relato, a equipe de moderacao deve:
+When receiving a report, the moderation team should:
 
-- confirmar recebimento (quando possivel)
-- avaliar evidencias e contexto
-- ouvir partes envolvidas, quando apropriado
-- definir medidas proporcionais ao impacto e recorrencia
-- registrar internamente a decisao para consistencia futura
+- acknowledge receipt (when possible)
+- evaluate evidence and context
+- hear involved parties, when appropriate
+- define actions proportional to impact and recurrence
+- internally document decisions for future consistency
 
-## Retaliacao
+## Retaliation
 
-Retaliacao contra quem reporta incidentes de boa-fe e proibida.
+Retaliation against anyone who reports incidents in good faith is prohibited.
 
-Acoes de retaliacao serao tratadas como violacao grave deste Codigo de Conduta.
+Retaliatory actions will be treated as a severe violation of this Code of Conduct.
 
-## Crescimento da comunidade
+## Community growth
 
-Como startup, estamos construindo produto e comunidade ao mesmo tempo.
+As a startup, we are building product and community at the same time.
 
-Queremos crescer com:
+We want to grow with:
 
-- transparencia nas decisoes importantes
-- abertura para contribuicoes externas de diferentes niveis
-- cultura de aprendizado continuo
-- foco em impacto real para clientes e parceiros
+- transparency in important decisions
+- openness to external contributors at different levels
+- a culture of continuous learning
+- focus on real impact for clients and partners
 
-Este Codigo de Conduta existe para proteger esse caminho.
+This Code of Conduct exists to protect that path.
 
-## Atribuicao
+## Attribution
 
-Este documento foi inspirado em praticas amplamente adotadas por comunidades open source e adaptado para o contexto da Fince.
+This document was inspired by practices widely adopted by open source communities and adapted to the Fince context.
 
-## Atualizacoes
+## Updates
 
-A Fince pode atualizar este documento para refletir a evolucao da comunidade e do projeto.
+Fince may update this document to reflect the evolution of the community and project.
 
-Mudancas relevantes serao comunicadas neste repositorio.
+Relevant changes will be communicated in this repository.
