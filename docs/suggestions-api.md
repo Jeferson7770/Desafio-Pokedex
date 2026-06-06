@@ -1,11 +1,11 @@
-# Guia de uso da API de Sugestoes
+# Suggestions API Guide
 
-Este documento descreve como consumir os endpoints de sugestoes e feedbacks.
+This document explains how to consume suggestion and feedback endpoints.
 
-## 1. Autenticacao
+## 1. Authentication
 
 ```http
-Authorization: Bearer <seu_token>
+Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
@@ -15,11 +15,11 @@ Base URL:
 /api/suggestions/
 ```
 
-## 2. O que sao as sugestoes
+## 2. Module Purpose
 
-O modulo de sugestoes permite que usuarios da plataforma enviem feedbacks, reportem bugs e solicitem novas funcionalidades diretamente pelo app. Cada sugestao e vinculada a firm do usuario.
+Suggestions module allows platform users to submit feedback, report bugs, and request new features directly in the app. Each suggestion is linked to the authenticated user's firm.
 
-## 3. Estrutura de dados
+## 3. Data Structure
 
 ### Suggestion
 
@@ -27,86 +27,57 @@ O modulo de sugestoes permite que usuarios da plataforma enviem feedbacks, repor
 {
   "id": 1,
   "name": "Maria da Silva",
-  "email": "maria@exemplo.com",
+  "email": "maria@example.com",
   "category": "NOVA_FUNC",
   "category_display": "Nova Funcionalidade",
-  "subject": "Exportar relatorio em PDF",
-  "message": "Seria muito util poder exportar o relatorio mensal em PDF para enviar aos socios.",
+  "subject": "Export report as PDF",
+  "message": "It would be useful to export monthly report to PDF for partners.",
   "created_at": "2026-06-04T10:00:00Z"
 }
 ```
 
-### Categorias
+Category values:
 
-| Valor | Descricao |
-|-------|-----------|
-| `MELHORIA` | Melhoria de Funcionalidade |
-| `NOVA_FUNC` | Nova Funcionalidade |
-| `BUG` | Relato de Bug |
-| `OUTRO` | Outro |
+- `MELHORIA`
+- `NOVA_FUNC`
+- `BUG`
+- `OUTRO`
 
-## 4. Listar sugestoes
+## 4. List suggestions
 
 ```http
 GET /api/suggestions/
 ```
 
-Retorna as sugestoes da firm do usuario autenticado, ordenadas da mais recente.
+Returns firm-scoped suggestions ordered by newest first.
 
-## 5. Enviar sugestao
+## 5. Create suggestion
 
 ```http
 POST /api/suggestions/
 ```
 
-```json
-{
-  "name": "Joao Souza",
-  "email": "joao@exemplo.com",
-  "category": "BUG",
-  "subject": "Erro ao salvar despesa parcelada",
-  "message": "Quando tento salvar uma despesa com 12 parcelas, aparece erro 500."
-}
-```
-
-Resposta `201`:
-
-```json
-{
-  "id": 5,
-  "name": "Joao Souza",
-  "email": "joao@exemplo.com",
-  "category": "BUG",
-  "category_display": "Relato de Bug",
-  "subject": "Erro ao salvar despesa parcelada",
-  "message": "Quando tento salvar uma despesa com 12 parcelas, aparece erro 500.",
-  "created_at": "2026-06-04T14:30:00Z"
-}
-```
-
-A sugestao e automaticamente vinculada a firm do usuario autenticado.
-
-## 6. Buscar sugestao por ID
+## 6. Retrieve suggestion by ID
 
 ```http
 GET /api/suggestions/{id}/
 ```
 
-## 7. Atualizar sugestao
+## 7. Update suggestion
 
 ```http
 PATCH /api/suggestions/{id}/
 ```
 
-## 8. Remover sugestao
+## 8. Delete suggestion
 
 ```http
 DELETE /api/suggestions/{id}/
 ```
 
-## 9. Checklist rapido para o frontend
+## 9. Frontend Checklist
 
-1. Sempre enviar token no header.
-2. `name` e `email` no body sao do remetente — podem ser preenchidos automaticamente com os dados do perfil logado.
-3. `category_display` retorna o label legivel em portugues — use para exibir na UI.
-4. Sugestoes sao isoladas por firm — um usuario nao ve sugestoes de outros escritorios.
+1. Always send token.
+2. `name` and `email` represent sender identity; can be prefilled from logged-in profile.
+3. `category_display` is localized backend label; display it directly in UI.
+4. Suggestions are firm-isolated.

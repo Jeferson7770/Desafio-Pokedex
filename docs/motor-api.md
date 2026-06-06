@@ -1,11 +1,11 @@
-# Guia de uso da API do Motor de Prioridade
+# Priority Engine API Guide
 
-Este documento descreve como consumir os endpoints do motor de priorizacao de pagamentos.
+This document explains how to consume payment-priority engine endpoints.
 
-## 1. Autenticacao
+## 1. Authentication
 
 ```http
-Authorization: Bearer <seu_token>
+Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
@@ -15,18 +15,18 @@ Base URL:
 /api/motor/
 ```
 
-## 2. O que e o Motor de Prioridade
+## 2. What the Priority Engine Does
 
-O Motor de Prioridade analisa as despesas da firm para o mes atual e sugere uma ordem de pagamento com base no saldo disponivel em conta. Ele separa os pagamentos em dois grupos:
+The priority engine analyzes current-month firm expenses and suggests payment order based on available cash balance. It separates items into two groups:
 
-- **pagamentos_recomendados**: despesas que cabem no saldo disponivel.
-- **pagamentos_nao_cobertos**: despesas que excedem o saldo.
+- `pagamentos_recomendados`: expenses covered by available balance.
+- `pagamentos_nao_cobertos`: expenses that exceed available balance.
 
-O frontend pode reordenar esses cards e salvar a configuracao preferida.
+Frontend can reorder cards and persist custom configuration.
 
-## 3. Estrutura de dados
+## 3. Data Structure
 
-### SimulacaoPrioridade
+### `SimulacaoPrioridade`
 
 ```json
 {
@@ -35,106 +35,40 @@ O frontend pode reordenar esses cards e salvar a configuracao preferida.
   "saldo_total_disponivel": "22400.00",
   "saldo_restante_pos_pagamentos": "5200.00",
   "created_at": "2026-06-04T10:00:00Z",
-  "pagamentos_recomendados": [
-    {
-      "id": 10,
-      "parcela": 55,
-      "expense_title": "Aluguel do Escritorio",
-      "category": "ESTRUTURA",
-      "priority": "CRITICA",
-      "due_date": "2026-06-10",
-      "status_recomendacao": "RECOMENDADO",
-      "amount_snapshot": "3500.00",
-      "late_interest_snapshot": "0.00"
-    }
-  ],
-  "pagamentos_nao_cobertos": [
-    {
-      "id": 11,
-      "parcela": 60,
-      "expense_title": "Software de Gestao",
-      "category": "ESTRUTURA",
-      "priority": "ALTA",
-      "due_date": "2026-06-15",
-      "status_recomendacao": "NAO_COBERTO",
-      "amount_snapshot": "890.00",
-      "late_interest_snapshot": "0.00"
-    }
-  ]
+  "pagamentos_recomendados": [],
+  "pagamentos_nao_cobertos": []
 }
 ```
 
-### Status de recomendacao
+Recommendation status values:
 
-| Valor | Descricao |
-|-------|-----------|
-| `RECOMENDADO` | Pagamento cabe no saldo disponivel |
-| `NAO_COBERTO` | Pagamento excede o saldo disponivel |
+- `RECOMENDADO`
+- `NAO_COBERTO`
 
-## 4. Calcular prioridades dinamicamente (GET)
+## 4. Calculate priorities dynamically
 
 ```http
 GET /api/motor/
 ```
 
-Calcula e retorna a priorizacao para o mes atual sem salvar no banco.
+Returns current-month prioritization without persisting.
 
-Resposta `200`:
-
-```json
-{
-  "reference_period": "2026-06",
-  "saldo_total_disponivel": 22400.0,
-  "saldo_restante_pos_pagamentos": 5200.0,
-  "pagamentos_recomendados": [ ... ],
-  "pagamentos_nao_cobertos": [ ... ]
-}
-```
-
-Use este endpoint para renderizar os cards na tela na carga inicial.
-
-## 5. Salvar configuracao personalizada (POST)
+## 5. Save custom configuration
 
 ```http
 POST /api/motor/salvar-configuracao/
 ```
 
-Salva a ordem dos cards exatamente como o usuario deixou na tela.
+Behavior:
 
-```json
-{
-  "pagamentos_recomendados": [
-    { "parcela": 60, "status_recomendacao": "RECOMENDADO", "amount_snapshot": "890.00", "late_interest_snapshot": "0.00" },
-    { "parcela": 55, "status_recomendacao": "RECOMENDADO", "amount_snapshot": "3500.00", "late_interest_snapshot": "0.00" }
-  ],
-  "pagamentos_nao_cobertos": [
-    { "parcela": 72, "status_recomendacao": "NAO_COBERTO", "amount_snapshot": "1200.00", "late_interest_snapshot": "15.00" }
-  ]
-}
-```
+1. Preserves exact array order from payload.
+2. Creates or overwrites current-month simulation for the firm.
+3. Returns saved object.
 
-Comportamento:
-1. O backend preserva a ordem exata dos arrays enviados.
-2. Cria ou sobrescreve a simulacao do mes atual para a firm.
-3. Retorna o objeto salvo com ID e dados completos.
+## 6. Frontend Checklist
 
-Resposta `201`:
-
-```json
-{
-  "id": 1,
-  "reference_period": "2026-06",
-  "saldo_total_disponivel": "22400.00",
-  "saldo_restante_pos_pagamentos": "5200.00",
-  "pagamentos_recomendados": [ ... ],
-  "pagamentos_nao_cobertos": [ ... ]
-}
-```
-
-## 6. Checklist rapido para o frontend
-
-1. Na carga da tela: `GET /api/motor/` para calcular dinamicamente.
-2. Ao usuario confirmar a ordem dos cards: `POST /api/motor/salvar-configuracao/` com os dois arrays na ordem da tela.
-3. A soma de `pagamentos_recomendados` + `pagamentos_nao_cobertos` no payload deve conter todos os cards.
-4. O payload vazio retorna erro de validacao — sempre enviar pelo menos 1 item.
-5. `amount_snapshot` e `late_interest_snapshot` devem ser os valores exibidos na tela (snapshot do momento).
+1. On load, call `GET /api/motor/`.
+2. On user confirmation, call `POST /api/motor/salvar-configuracao/` with both arrays.
+3. Ensure payload includes all cards across both arrays.
+4. Empty payload returns validation error.
+5. Keep snapshot values aligned with UI values.

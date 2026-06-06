@@ -1,11 +1,11 @@
-# Guia Completo da API de Clients e Cases
+# Clients and Cases API Guide
 
-Este documento descreve como consumir os endpoints de clientes, processos e importacao em lote.
+This document explains how to consume the clients, cases (processes), and bulk import endpoints.
 
-## Base URL e autenticacao
+## Base URL and Authentication
 
-- Base de clients/cases: `/api/cases/`
-- Todos os endpoints exigem autenticacao JWT.
+- Base: `/api/cases/`
+- All endpoints require JWT authentication.
 
 Headers:
 
@@ -14,7 +14,7 @@ Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
-## Endpoints disponiveis
+## Available Endpoints
 
 1. `GET /api/cases/clients/`
 2. `POST /api/cases/clients/`
@@ -28,7 +28,7 @@ Content-Type: application/json
 10. `PATCH /api/cases/processes/{id}/`
 11. `DELETE /api/cases/processes/{id}/`
 
-## Estrutura de dados
+## Data Structures
 
 ### Client
 
@@ -37,11 +37,11 @@ Content-Type: application/json
   "id": 1,
   "firm": 10,
   "name": "Maria da Silva",
-  "email": "maria@teste.com",
+  "email": "maria@test.com",
   "phone": "11999999999",
   "cpf_cnpj": "123.456.789-09",
   "type": "PF",
-  "notes": "Cliente VIP",
+  "notes": "VIP client",
   "created_at": "2026-06-04T10:00:00Z"
 }
 ```
@@ -55,21 +55,15 @@ Content-Type: application/json
   "client": 1,
   "client_details": {
     "id": 1,
-    "name": "Maria da Silva",
-    "email": "maria@teste.com",
-    "phone": "11999999999",
-    "cpf_cnpj": "123.456.789-09",
-    "type": "PF",
-    "notes": "Cliente VIP",
-    "created_at": "2026-06-04T10:00:00Z"
+    "name": "Maria da Silva"
   },
   "client_name": "Maria da Silva",
-  "title": "Acao de Cobranca - Contrato X",
+  "title": "Debt collection - Contract X",
   "status": "ATIVO",
   "total_fee": "15000.00",
   "payment_type": "INSTALLMENT",
   "win_probability": 0.7,
-  "stage": "Inicial",
+  "stage": "Initial",
   "expected_close_date": "2026-12-20",
   "schedules": [
     {
@@ -96,7 +90,7 @@ Content-Type: application/json
 }
 ```
 
-## Enums aceitos
+## Accepted Enums
 
 ### Client type
 
@@ -115,43 +109,39 @@ Content-Type: application/json
 - `SUCCESS_FEE`
 - `HYBRID`
 
-## CRUD de Clients
+## Clients CRUD
 
-### Listar clientes
+### List clients
 
 ```http
 GET /api/cases/clients/
 ```
 
-Comportamento:
+Behavior:
 
-1. Retorna apenas clientes da firm do usuario autenticado.
-2. Ordenacao por `name`.
+1. Returns only clients from authenticated user's firm.
+2. Ordered by `name`.
 
-### Criar cliente
+### Create client
 
 ```http
 POST /api/cases/clients/
 ```
 
-Body:
-
 ```json
 {
   "name": "Maria da Silva",
-  "email": "maria@teste.com",
+  "email": "maria@test.com",
   "phone": "11999999999",
   "cpf_cnpj": "123.456.789-09",
   "type": "PF",
-  "notes": "Cliente VIP"
+  "notes": "VIP client"
 }
 ```
 
-Comportamento:
+`firm` is always assigned by backend.
 
-- `firm` e sempre definida pelo backend a partir do usuario autenticado.
-
-### Buscar, editar e remover cliente
+### Retrieve, update, delete client
 
 ```http
 GET /api/cases/clients/{id}/
@@ -159,31 +149,29 @@ PATCH /api/cases/clients/{id}/
 DELETE /api/cases/clients/{id}/
 ```
 
-## CRUD de Processes
+## Processes CRUD
 
-### Listar processos
+### List processes
 
 ```http
 GET /api/cases/processes/
 ```
 
-### Criar processo com schedules
+### Create process with schedules
 
 ```http
 POST /api/cases/processes/
 ```
 
-Body:
-
 ```json
 {
   "client": 1,
-  "title": "Acao de Cobranca - Contrato X",
+  "title": "Debt collection - Contract X",
   "status": "ATIVO",
   "total_fee": "15000.00",
   "payment_type": "INSTALLMENT",
   "win_probability": 0.7,
-  "stage": "Inicial",
+  "stage": "Initial",
   "expected_close_date": "2026-12-20",
   "schedules": [
     { "amount": "5000.00", "expected_date": "2026-08-10", "probability": 0.9, "paid": false },
@@ -192,14 +180,14 @@ Body:
 }
 ```
 
-Regras:
+Rules:
 
-1. `schedules` pode ser omitido.
-2. `schedules` pode ser `[]`.
-3. `client_name` e preenchido automaticamente com o nome do cliente.
-4. `firm` e atribuida automaticamente pelo backend.
+1. `schedules` can be omitted.
+2. `schedules` can be empty.
+3. `client_name` is auto-filled from the selected client.
+4. `firm` is assigned by backend.
 
-### Buscar, editar e remover processo
+### Retrieve, update, delete process
 
 ```http
 GET /api/cases/processes/{id}/
@@ -207,7 +195,7 @@ PATCH /api/cases/processes/{id}/
 DELETE /api/cases/processes/{id}/
 ```
 
-## Importacao em lote de Clients + Processes
+## Bulk Import: Clients + Processes
 
 ### Endpoint
 
@@ -215,106 +203,36 @@ DELETE /api/cases/processes/{id}/
 POST /api/cases/clients/import/
 ```
 
-### Payload esperado
+### Expected payload
 
-Array de clientes com processos e schedules aninhados:
+Array of clients with nested processes and schedules.
 
-```json
-[
-  {
-    "name": "Maria da Silva",
-    "email": "maria@teste.com",
-    "phone": "11999999999",
-    "cpf_cnpj": "123.456.789-09",
-    "type": "PF",
-    "notes": "Cliente VIP",
-    "processes": [
-      {
-        "title": "Acao de Cobranca - Contrato X",
-        "status": "ATIVO",
-        "total_fee": "15000.00",
-        "payment_type": "INSTALLMENT",
-        "win_probability": 0.7,
-        "stage": "Inicial",
-        "expected_close_date": "2026-12-20",
-        "schedules": [
-          { "amount": "5000.00", "expected_date": "2026-08-10", "probability": 0.9, "paid": false },
-          { "amount": "10000.00", "expected_date": "2026-11-10", "probability": 0.7, "paid": false }
-        ]
-      }
-    ]
-  }
-]
-```
+### Implemented rules
 
-### Regras implementadas
+1. Payload must be an array.
+2. Maximum 500 items per import.
+3. Batch processing with partial result (`created` and `errors`).
+4. Each client is processed in its own transaction.
+5. If one client fails, nothing for that client is persisted.
+6. `processes` can be empty or omitted.
+7. `schedules` can be empty or omitted for each process.
+8. Duplicate grouping inside payload:
+   - by `cpf_cnpj` if provided;
+   - otherwise by `email` if provided;
+   - otherwise treated as independent client rows.
+9. Database duplicates in same firm:
+   - existing `cpf_cnpj` -> validation error;
+   - existing `email` -> validation error.
 
-1. Payload deve ser array.
-2. Limite maximo de 500 itens por importacao.
-3. Processamento em lote com retorno parcial (`created` e `errors`).
-4. Cada cliente e processado em transacao atomica.
-5. Se um cliente falhar, nada desse cliente e persistido (incluindo processos/schedules).
-6. `processes` pode ser vazio ou omitido.
-7. `schedules` pode ser vazio ou omitido em cada processo.
-8. Se o mesmo cliente aparecer em multiplas linhas do array, backend agrupa por:
-   - `cpf_cnpj` quando informado;
-   - senao `email` quando informado;
-   - senao trata como cliente independente por linha.
-9. Duplicidade em base por firm:
-   - se `cpf_cnpj` ja existir, retorna erro;
-   - se `email` ja existir, retorna erro.
+### Error fields
 
-### Resposta
+1. `index`: 0-based index in original array.
+2. `name`: client name from payload.
+3. `detail`: validation or persistence error details.
 
-```json
-{
-  "created": [
-    {
-      "id": 1,
-      "firm": 10,
-      "name": "Maria da Silva",
-      "email": "maria@teste.com",
-      "phone": "11999999999",
-      "cpf_cnpj": "123.456.789-09",
-      "type": "PF",
-      "notes": "Cliente VIP",
-      "created_at": "2026-06-04T10:00:00Z",
-      "processes": [
-        {
-          "id": 10,
-          "firm": 10,
-          "client": 1,
-          "client_name": "Maria da Silva",
-          "title": "Acao de Cobranca - Contrato X",
-          "status": "ATIVO",
-          "total_fee": "15000.00",
-          "payment_type": "INSTALLMENT",
-          "win_probability": 0.7,
-          "stage": "Inicial",
-          "expected_close_date": "2026-12-20",
-          "schedules": [
-            { "id": 100, "amount": "5000.00", "expected_date": "2026-08-10", "probability": 0.9, "paid": false }
-          ],
-          "created_at": "2026-06-04T10:00:00Z"
-        }
-      ]
-    }
-  ],
-  "errors": [
-    { "index": 2, "name": "Joao Pereira", "detail": "CPF/CNPJ ja cadastrado" }
-  ]
-}
-```
+## Frontend CSV Template Mapping
 
-### Significado dos campos de erro
-
-1. `index`: posicao do cliente no array original (base 0).
-2. `name`: nome recebido no payload para facilitar log/UX.
-3. `detail`: mensagem de validacao ou erro de persistencia.
-
-## Template CSV do frontend e mapeamento
-
-Template:
+Template columns:
 
 ```text
 nome, email, telefone, cpf_cnpj, tipo, observacoes,
@@ -324,7 +242,7 @@ parcela_1_valor, parcela_1_data, parcela_1_prob,
 parcela_2_valor, parcela_2_data, parcela_2_prob
 ```
 
-Mapeamento para payload JSON:
+Mapping to JSON payload:
 
 1. `nome` -> `name`
 2. `email` -> `email`
@@ -341,18 +259,10 @@ Mapeamento para payload JSON:
 13. `caso_data_encerramento` -> `processes[].expected_close_date`
 14. `parcela_n_valor/data/prob` -> `processes[].schedules[]`
 
-## Erros comuns e tratamento recomendado
+## Frontend Checklist
 
-1. `400 Payload deve ser um array de objetos.`
-2. `400 Maximo de 500 registros por importacao.`
-3. `400 O usuario nao possui nenhuma empresa vinculada...`
-4. `errors[].detail` com erro de validacao de campos obrigatorios de client/process/schedule.
-5. `errors[].detail` com duplicidade de CPF/CNPJ ou e-mail.
-
-## Checklist para frontend
-
-1. Sempre enviar JWT.
-2. Enviar import em array.
-3. Tratar `created` e `errors` no mesmo fluxo.
-4. Mostrar feedback por `errors[index]`.
-5. Considerar que linhas repetidas de um mesmo cliente podem ser agrupadas no backend.
+1. Always send JWT.
+2. For import, send an array payload.
+3. Handle both `created` and `errors` in one response.
+4. Show per-row feedback using `errors[index]`.
+5. Expect backend grouping for repeated client rows.

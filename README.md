@@ -1,78 +1,78 @@
 # fincecore
 
-Backend oficial da Fince: uma plataforma de gestao financeira para advogados e escritorios de advocacia.
+Official Fince backend: a financial management platform for lawyers and law firms.
 
-Somos uma empresa privada e operamos este produto em ambiente real. Este repositorio e open source porque acreditamos em construcao publica com padrao de producao.
+We are a private company operating this product in production. This repository is open source because we believe in public development with production-grade standards.
 
-Queremos atrair devs que curtam resolver problemas reais de produto B2B financeiro. Contribuidores consistentes entram no nosso radar para contratacao.
+We want to attract developers who enjoy solving real B2B financial product problems. Consistent contributors get on our hiring radar.
 
-## Nossa visao open source
+## Our open source vision
 
-A Fince e uma startup em fase de crescimento. Escolhemos o modelo open source para construir tecnologia de longo prazo com:
+Fince is a startup in growth mode. We chose open source to build long-term technology with:
 
-- transparencia tecnica para gerar confianca no produto
-- colaboracao da comunidade para acelerar qualidade e inovacao
-- padroes abertos para facilitar integracoes e auditoria
-- formacao de um ecossistema em torno de uma base comum
+- technical transparency to build trust in the product
+- community collaboration to accelerate quality and innovation
+- open standards to simplify integrations and audits
+- an ecosystem around a common foundation
 
-Nao abrimos codigo por marketing. Abrimos porque nosso produto melhora quando o desenvolvimento e publico, revisavel e orientado por problemas reais de quem usa e integra a plataforma.
+We do not open source for marketing. We do it because the product gets better when development is public, reviewable, and driven by real user and integration needs.
 
-## Licenciamento AGPLv3
+## AGPLv3 licensing
 
-Este projeto e licenciado sob a GNU Affero General Public License v3.0 (AGPLv3), com a opcao "or later".
+This project is licensed under the GNU Affero General Public License v3.0 (AGPLv3), with the "or later" option.
 
-O que isso significa na pratica:
+In practice, this means:
 
-- voce pode usar, estudar, modificar e redistribuir este codigo
-- se voce distribuir versoes modificadas, precisa manter o mesmo licenciamento
-- se voce operar uma versao modificada como servico via rede, deve disponibilizar o codigo-fonte correspondente para os usuarios desse servico
+- you can use, study, modify, and redistribute this code
+- if you distribute modified versions, you must keep the same license
+- if you run a modified version as a network service, you must provide the corresponding source code to users of that service
 
-Arquivo oficial de licenca: `LICENSE`.
+Official license file: `LICENSE`.
 
-Se sua empresa precisa de termos diferentes para distribuicao/compliance, fale com o time da Fince antes de usar em producao.
+If your company needs different distribution/compliance terms, talk to the Fince team before production usage.
 
-## O que o projeto resolve
+## What this project solves
 
-FinceCore centraliza o motor de negocio para:
+FinceCore centralizes the business engine for:
 
-- organizacao financeira de escritorios juridicos
-- controle de despesas, honorarios e outras entradas
-- acompanhamento de fluxo de caixa e indicadores
-- estrutura multi-escritorio com permissao por membro
-- integracao com provedores externos de dados financeiros e pagamento
+- financial organization for law offices
+- expense, fees, and other income management
+- cash-flow monitoring and business indicators
+- multi-firm structure with member-level permissions
+- integration with external financial and payment providers
 
-## Principais capacidades da API
+## Core API capabilities
 
-### Autenticacao e conta
+### Authentication and account
 
-- JWT com login por email
-- onboarding de perfil juridico
-- gerenciamento de dispositivos e seguranca de conta
+- JWT with email/password login
+- legal profile onboarding
+- device management and account security
 
 Base: `/api/auth/`
 
-### Escritorios e membros
+### Firms and members
 
-- criacao de escritorio
-- convite/adicao de membros
-- isolamento de dados por escritorio
+- firm creation
+- member invitation/addition
+- per-firm data isolation
 
 Base: `/api/firms/`
 
-### Financeiro operacional
+### Operational finance
 
-- contas bancarias e transacoes
-- dashboard financeiro consolidado
-- sincronizacao com Open Finance (Pluggy)
+- bank accounts and transactions
+- consolidated financial dashboard
+- Open Finance sync (Pluggy)
 
 Base: `/api/finance/`
 
-### Gestao financeira juridica
+### Legal finance workflows
 
-- despesas com prioridade, parcelamento e controle de pagamento
-- casos com estrutura de recebimento
-- honorarios e pro-labore
-- relatorios e consolidacoes
+- expenses with priority, installments, and payment control
+- cases with payment structures
+- fees and payroll
+- reports and consolidations
 
 Bases:
 
@@ -83,57 +83,64 @@ Bases:
 - `/api/reports/`
 - `/api/other-income/`
 
-### Produto e feedback
+Legacy aliases still available for compatibility:
 
-- sugestoes enviadas pelos usuarios
-- automacoes e motor de apoio a fluxos
+- `/api/honorarios/`
+- `/api/prolabore/`
+- `/api/relatorios/`
+- `/api/outras-entradas/`
+
+### Product and feedback
+
+- user-submitted suggestions
+- automation and workflow support engine
 
 Bases:
 
 - `/api/suggestions/`
 - `/api/motor/`
 
-### Documentacao de API
+### API documentation
 
 - Swagger: `/api/docs/`
 - Redoc: `/api/redoc/`
 - OpenAPI JSON: `/api/schema/`
 
-## Integracoes externas
+## External integrations
 
 ### AbacatePay
 
-Fluxo de checkout de assinatura ja implementado no backend, com criacao de checkout e retorno de URL para redirecionamento no frontend.
+Subscription checkout flow is already implemented in the backend, including checkout creation and a redirect URL for the frontend.
 
-Guia tecnico dedicado:
+Technical guide:
 
-- `docs/abacatepay-pagamento.md`
+- `docs/abacatepay-payment.md`
 
 ### Pluggy (Open Finance)
 
-Geracao de connect token e sincronizacao de contas/transacoes para consolidar saldos e fluxo.
+Connect token generation and account/transaction sync for balance and cash-flow consolidation.
 
-## Arquitetura em modulos
+## Modular architecture
 
-Apps Django no codigo:
+Django apps in the codebase:
 
 - `src/users`
 - `src/firms`
 - `src/expenses`
 - `src/cases`
-- `src/honorarios`
-- `src/prolabore`
-- `src/outras_entradas`
-- `src/relatorios`
-- `src/dinheiro`
+- `src/fees`
+- `src/payroll`
+- `src/other_income`
+- `src/reports`
+- `src/finance`
 - `src/suggestions`
 - `src/motor`
 
-Roteamento central:
+Central routing:
 
 - `core/urls.py`
 
-## Stack tecnica
+## Tech stack
 
 - Python 3.12+
 - Django 6
@@ -141,9 +148,9 @@ Roteamento central:
 - SimpleJWT
 - drf-spectacular
 - Poetry
-- PostgreSQL (com fallback local configuravel)
+- PostgreSQL (with configurable local fallback)
 
-Dependencias principais no projeto:
+Key dependencies:
 
 - `djangorestframework`
 - `djangorestframework-simplejwt`
@@ -154,22 +161,22 @@ Dependencias principais no projeto:
 - `requests`
 - `posthog`
 
-## Como rodar localmente
+## Running locally
 
-### 1) Pre-requisitos
+### 1) Prerequisites
 
 - Python 3.12+
 - Poetry
 
-### 2) Instalar dependencias
+### 2) Install dependencies
 
 ```bash
 poetry install
 ```
 
-### 3) Configurar ambiente
+### 3) Configure environment
 
-Crie um arquivo `.env` na raiz com o minimo:
+Create a `.env` file at the repository root with at least:
 
 ```env
 SECRET_KEY="change-me"
@@ -177,7 +184,7 @@ DEBUG=True
 DATABASE_URL="sqlite:///db.sqlite3"
 ```
 
-Para testar integracoes financeiras, configure tambem:
+To test financial integrations, also set:
 
 ```env
 ABACATEPAY_API_KEY=""
@@ -187,18 +194,18 @@ PLUGGY_CLIENT_ID=""
 PLUGGY_CLIENT_SECRET=""
 ```
 
-### 4) Migrar banco e subir servidor
+### 4) Run migrations and start server
 
 ```bash
 poetry run python manage.py migrate
 poetry run python manage.py runserver 0.0.0.0:8000
 ```
 
-API local:
+Local API:
 
 - `http://localhost:8000`
 
-## Execucao com container
+## Running with containers
 
 ### Docker
 
@@ -214,16 +221,16 @@ make build
 make run
 ```
 
-## Exemplo rapido de autenticacao
+## Quick authentication example
 
-### Registro
+### Register
 
 ```bash
 curl -X POST http://localhost:8000/api/auth/register/ \
   -H "Content-Type: application/json" \
   -d '{
     "email": "dev@fince.local",
-    "password": "Senha@2026",
+    "password": "Password@2026",
     "full_name": "Dev Fince",
     "cpf": "111.222.333-44",
     "oab_number": "12345",
@@ -238,50 +245,50 @@ curl -X POST http://localhost:8000/api/auth/login/ \
   -H "Content-Type: application/json" \
   -d '{
     "email": "dev@fince.local",
-    "password": "Senha@2026"
+    "password": "Password@2026"
   }'
 ```
 
-## Qualidade e direcao tecnica
+## Quality and technical direction
 
-Este projeto esta evoluindo rapido e valorizamos contribuicoes com foco em:
+This project is evolving quickly and we value contributions focused on:
 
-- cobertura de testes para fluxos criticos
-- resiliencia de integracoes externas
-- observabilidade e telemetria
-- seguranca e autorizacao por tenant
-- performance de consultas e relatorios
+- test coverage for critical workflows
+- external integration resilience
+- observability and telemetry
+- tenant-aware security and authorization
+- query and reporting performance
 
-## Contribuicao e contratacao
+## Contribution and hiring
 
-Contribuir aqui e uma forma pratica de trabalhar em um produto real da Fince.
+Contributing here is a practical way to work on a real Fince product.
 
-Buscamos devs que demonstrem:
+We look for developers who demonstrate:
 
-- ownership tecnico
-- preocupacao com produto e usuario final
-- capacidade de entrega com qualidade
-- comunicacao clara em PRs
+- technical ownership
+- product and end-user focus
+- high-quality delivery
+- clear PR communication
 
-Como contribuir:
+How to contribute:
 
 1. Fork the repository.
-2. Crie uma branch (`feature/*`, `fix/*` ou `chore/*`).
-3. Implemente sua melhoria com contexto tecnico no commit.
-4. Abra PR para `main` explicando problema, solucao e impacto.
-5. Se possivel, inclua teste e atualizacao da documentacao.
+2. Create a branch (`feature/*`, `fix/*`, or `chore/*`).
+3. Implement your improvement with technical context in commits.
+4. Open a PR to `main` explaining problem, solution, and impact.
+5. If possible, include tests and documentation updates.
 
-Se voce quer contribuir e tambem entrar no nosso pipeline de contratacao, abra PRs consistentes e participe das discussoes tecnicas.
+If you want to contribute and also enter our hiring pipeline, submit consistent PRs and participate in technical discussions.
 
-## Comunidade e conduta
+## Community and conduct
 
-Queremos crescer como startup sem abrir mao de respeito, colaboracao e ambiente seguro para contribuir.
+We want to grow as a startup without compromising respect, collaboration, and a safe contribution environment.
 
-Leia nosso codigo de conduta em `CODE_OF_CONDUCT.md` antes de participar de discussoes, issues e pull requests.
+Read our code of conduct in `CODE_OF_CONDUCT.md` before participating in discussions, issues, and pull requests.
 
 ## Open source governance
 
-Documentos oficiais para contribuicao, seguranca e politicas do projeto:
+Official project contribution, security, and policy documents:
 
 - `CONTRIBUTING.md`
 - `SECURITY.md`
@@ -291,18 +298,18 @@ Documentos oficiais para contribuicao, seguranca e politicas do projeto:
 - `DCO.md`
 - `SUPPORT.md`
 
-## Documentacao adicional
+## Additional documentation
 
 - `docs/users-api.md`
-- `docs/dinheiro-api.md`
+- `docs/finance-api.md`
 - `docs/expenses-api.md`
-- `docs/honorarios-api.md`
-- `docs/relatorios-api.md`
-- `docs/abacatepay-pagamento.md`
+- `docs/fees-api.md`
+- `docs/reports-api.md`
+- `docs/abacatepay-payment.md`
 
-## Licenca
+## License
 
-Distribuido sob AGPLv3-or-later.
+Distributed under AGPLv3-or-later.
 
-- Texto completo: `LICENSE`
-- Conduta da comunidade: `CODE_OF_CONDUCT.md`
+- Full text: `LICENSE`
+- Community conduct: `CODE_OF_CONDUCT.md`

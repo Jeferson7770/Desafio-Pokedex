@@ -1,11 +1,11 @@
-# Guia de uso da API de Firms (Escritorios)
+# Firms API Guide (Law Offices)
 
-Este documento descreve como consumir os endpoints de escritorios e membros.
+This document explains how to consume firm and member endpoints.
 
-## 1. Autenticacao
+## 1. Authentication
 
 ```http
-Authorization: Bearer <seu_token>
+Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
@@ -15,31 +15,29 @@ Base URL:
 /api/firms/
 ```
 
-## 2. Regras importantes
+## 2. Important Rules
 
-1. Um usuario pode pertencer a multiplas firms, mas o sistema usa sempre a primeira membership.
-2. Ao criar uma firm, o usuario criador e automaticamente associado como `OWNER`.
-3. Um usuario so ve firms das quais e membro.
+1. A user can belong to multiple firms, but current backend behavior uses the first membership.
+2. When creating a firm, the creator is automatically assigned as `OWNER`.
+3. A user can only see firms where they are a member.
 
-## 3. Estrutura de dados
+## 3. Data Structures
 
 ### Firm
 
 ```json
 {
   "id": 10,
-  "name": "Silva & Associados",
+  "name": "Silva & Partners",
   "type": "OFFICE",
   "created_at": "2026-01-10T10:00:00Z"
 }
 ```
 
-Tipos de escritorio (`type`):
+`type` values:
 
-| Valor | Descricao |
-|-------|-----------|
-| `SOLO` | Individual |
-| `OFFICE` | Escritorio Coletivo |
+- `SOLO`
+- `OFFICE`
 
 ### FirmMember
 
@@ -47,29 +45,27 @@ Tipos de escritorio (`type`):
 {
   "id": 5,
   "user": 2,
-  "user_email": "joao@exemplo.com",
+  "user_email": "joao@example.com",
   "role": "LAWYER",
   "created_at": "2026-02-01T10:00:00Z"
 }
 ```
 
-Papeis de membro (`role`):
+`role` values:
 
-| Valor | Descricao |
-|-------|-----------|
-| `OWNER` | Dono |
-| `LAWYER` | Advogado Associado |
-| `STAFF` | Equipe de Apoio |
+- `OWNER`
+- `LAWYER`
+- `STAFF`
 
-## 4. Listar escritorios
+## 4. List firms
 
 ```http
 GET /api/firms/
 ```
 
-Retorna os escritorios nos quais o usuario autenticado e membro.
+Returns firms where authenticated user is a member.
 
-## 5. Criar escritorio
+## 5. Create firm
 
 ```http
 POST /api/firms/
@@ -77,80 +73,42 @@ POST /api/firms/
 
 ```json
 {
-  "name": "Souza Advogados",
+  "name": "Souza Law",
   "type": "SOLO"
 }
 ```
 
-Resposta `201`:
+The creator is added as `OWNER` automatically.
 
-```json
-{
-  "id": 11,
-  "name": "Souza Advogados",
-  "type": "SOLO",
-  "created_at": "2026-06-04T10:00:00Z"
-}
-```
-
-O usuario que criou e adicionado como `OWNER` automaticamente.
-
-## 6. Buscar escritorio por ID
+## 6. Retrieve firm
 
 ```http
 GET /api/firms/{id}/
 ```
 
-## 7. Atualizar escritorio
+## 7. Update firm
 
 ```http
 PATCH /api/firms/{id}/
 ```
 
-```json
-{
-  "name": "Novo Nome do Escritorio"
-}
-```
-
-## 8. Remover escritorio
+## 8. Delete firm
 
 ```http
 DELETE /api/firms/{id}/
 ```
 
-Remove o escritorio e todos os dados relacionados em cascata. Use com cuidado.
+Deletes the firm and related data by cascade.
 
-## 9. Listar membros
+## 9. List members
 
 ```http
 GET /api/firms/{id}/members/
 ```
 
-Retorna todos os membros do escritorio.
+Returns all firm members.
 
-Resposta `200`:
-
-```json
-[
-  {
-    "id": 1,
-    "user": 1,
-    "user_email": "dono@exemplo.com",
-    "role": "OWNER",
-    "created_at": "2026-01-10T10:00:00Z"
-  },
-  {
-    "id": 2,
-    "user": 3,
-    "user_email": "associado@exemplo.com",
-    "role": "LAWYER",
-    "created_at": "2026-03-01T10:00:00Z"
-  }
-]
-```
-
-## 10. Adicionar membro
+## 10. Add member
 
 ```http
 POST /api/firms/{id}/add_member/
@@ -163,11 +121,9 @@ POST /api/firms/{id}/add_member/
 }
 ```
 
-Resposta `201` com o objeto do membro criado.
+## 11. Frontend Checklist
 
-## 11. Checklist rapido para o frontend
-
-1. Sempre enviar token no header.
-2. Na criacao da firm, o usuario ja fica como `OWNER` automaticamente.
-3. Para convidar novos membros, usar `POST /api/firms/{id}/add_member/` com o `user` ID e o `role`.
-4. Tratar erros 400 por campo nas validacoes.
+1. Always send auth token.
+2. New firm creator becomes `OWNER` automatically.
+3. To invite members, call `POST /api/firms/{id}/add_member/`.
+4. Handle validation errors as field-level feedback.

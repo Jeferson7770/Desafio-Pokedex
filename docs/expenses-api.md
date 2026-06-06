@@ -1,18 +1,18 @@
-# Guia Completo da API de Expenses
+# Expenses API Guide
 
-Este documento descreve como usar os endpoints de expenses no backend atual.
+This document explains how to use the current expenses endpoints.
 
-## Base URL e autenticacao
+## Base URL and Authentication
 
 - Base: `/api/expenses/`
-- Todos os endpoints exigem JWT:
+- All endpoints require JWT.
 
 ```http
 Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
-## Visao geral dos endpoints
+## Endpoints Overview
 
 1. `GET /api/expenses/`
 2. `POST /api/expenses/`
@@ -23,7 +23,7 @@ Content-Type: application/json
 7. `POST /api/expenses/defer-installment/{installment_id}/`
 8. `GET /api/expenses/yearly-summary/`
 
-## Estrutura de dados
+## Data Structures
 
 ### Expense
 
@@ -31,15 +31,13 @@ Content-Type: application/json
 {
   "id": 1,
   "firm": 10,
-  "title": "Aluguel da Sala",
-  "description": "Contrato anual",
+  "title": "Office Rent",
+  "description": "Annual contract",
   "amount": "4800.00",
   "due_date": "2026-10-10",
   "frequency": "ONE_TIME",
   "category": "ESTRUTURA",
-  "category_display": "Estrutura",
   "priority": "LEGAL",
-  "priority_display": "Legal / Critico",
   "is_paid": false,
   "paid_at": null,
   "is_active": true,
@@ -52,7 +50,7 @@ Content-Type: application/json
 }
 ```
 
-### Installment (ParcelaDespesa)
+### Installment (`ParcelaDespesa`)
 
 ```json
 {
@@ -68,220 +66,110 @@ Content-Type: application/json
 }
 ```
 
-## Enums aceitos
+## Accepted Enums
 
-### frequency
+### `frequency`
 
 - `ONE_TIME`
 - `MONTHLY`
 - `ANNUAL`
 
-### category
+### `category`
 
 - `ESTRUTURA`
 - `PESSOAS`
 - `IMPOSTOS`
 - `OPERACIONAL`
 
-### priority
+### `priority`
 
 - `LEGAL`
 - `OPERACIONAL`
 - `OPCIONAL`
 
-## 1) Listar expenses
-
-### Endpoint
+## 1) List expenses
 
 ```http
 GET /api/expenses/
 ```
 
-### Query params opcionais
+Optional query params:
 
-- `year` (int)
-- `month` (int)
+- `year`
+- `month`
 
-### Comportamento
+Behavior:
 
-1. Sempre filtra por firm do usuario autenticado.
-2. Sempre retorna apenas `is_active=true`.
-3. Se `year` e `month` forem enviados juntos, retorna lista sem paginacao.
-4. Sem `year/month`, usa fluxo padrao do ModelViewSet (pode vir paginado, conforme configuracao global).
+1. Always filters by authenticated user's firm.
+2. Always returns only `is_active=true`.
+3. If `year` and `month` are both sent, response is unpaginated list.
+4. Without period filters, default ModelViewSet behavior applies.
 
-### Exemplo
-
-```http
-GET /api/expenses/?year=2026&month=10
-```
-
-## 2) Criar expense
-
-### Endpoint
+## 2) Create expense
 
 ```http
 POST /api/expenses/
 ```
 
-### Payload exemplo (avulso)
+Rules:
 
-```json
-{
-  "title": "Internet",
-  "description": "Plano escritorio",
-  "amount": 299.90,
-  "due_date": "2026-10-05",
-  "frequency": "MONTHLY",
-  "category": "OPERACIONAL",
-  "priority": "OPERACIONAL",
-  "is_paid": false,
-  "is_active": true,
-  "is_installment": false,
-  "total_installments": 1,
-  "interest_rate_month": 0
-}
-```
+1. `firm` is set by backend.
+2. If `is_installment=true`, installments are generated automatically.
+3. Installments are derived from `amount` and `total_installments`.
+4. Rounding residue is applied to the last installment.
+5. Installment due dates move monthly from `due_date`.
 
-### Payload exemplo (parcelado)
-
-```json
-{
-  "title": "Notebook Equipe",
-  "description": "Compra parcelada",
-  "amount": 6000.00,
-  "due_date": "2026-10-10",
-  "frequency": "ONE_TIME",
-  "category": "ESTRUTURA",
-  "priority": "OPERACIONAL",
-  "is_paid": false,
-  "is_active": true,
-  "is_installment": true,
-  "total_installments": 3,
-  "interest_rate_month": 1.5
-}
-```
-
-### Regras de criacao
-
-1. `firm` e definido pelo backend via usuario autenticado.
-2. Se `is_installment=true`, backend gera parcelas automaticamente.
-3. Valor das parcelas e distribuido a partir de `amount` e `total_installments`.
-4. Ajuste de centavos e aplicado na ultima parcela.
-5. Datas de parcelas avancam mensalmente a partir de `due_date`.
-
-## 3) Buscar expense por id
-
-### Endpoint
+## 3) Retrieve expense by ID
 
 ```http
 GET /api/expenses/{id}/
 ```
 
-### Resposta
+Returns full expense with embedded installments.
 
-- Objeto completo de expense com `installments` embutido.
-
-## 4) Atualizar expense
-
-### Endpoint
+## 4) Update expense
 
 ```http
 PATCH /api/expenses/{id}/
 ```
 
-### Exemplo: marcar como pago
+Important behavior:
 
-```json
-{
-  "is_paid": true
-}
-```
+- Setting `is_paid=true` updates `paid_at` on header and all installments.
+- Setting `is_paid=false` clears `paid_at` on header and all installments.
 
-### Regra importante
-
-- Ao marcar `is_paid=true`, backend define `paid_at` no header e em todas as parcelas.
-- Ao voltar `is_paid=false`, backend limpa `paid_at` do header e das parcelas.
-
-## 5) Remover expense
-
-### Endpoint
+## 5) Delete expense
 
 ```http
 DELETE /api/expenses/{id}/
 ```
 
-### Comportamento
+Removes expense and cascades related installments.
 
-- Remove o registro de expense.
-- Parcelas relacionadas sao removidas por cascata.
-
-## 6) Importacao em lote
-
-### Endpoint
+## 6) Bulk import
 
 ```http
 POST /api/expenses/import/
 ```
 
-### Payload
+Rules implemented:
 
-- Array de objetos de expense.
+1. Payload must be an array.
+2. Maximum 500 items per request.
+3. Partial processing: one invalid item does not abort entire batch.
+4. Response always includes `created` and `errors`.
+5. `errors[index]` is 0-based.
+6. Backend forces `is_active=true`.
+7. If `category` is `null`, backend normalizes to `OPERACIONAL`.
+8. If `installment_value` is sent, backend validates consistency with `amount` and `total_installments`.
 
-```json
-[
-  {
-    "title": "Aluguel da Sala",
-    "description": "Obs livre",
-    "amount": 4800.00,
-    "due_date": "2026-10-10",
-    "frequency": "ONE_TIME",
-    "category": "ESTRUTURA",
-    "priority": "LEGAL",
-    "is_active": true,
-    "is_installment": false,
-    "total_installments": 1,
-    "installment_value": 4800.00,
-    "interest_rate_month": 0
-  }
-]
-```
-
-### Regras de importacao implementadas
-
-1. Payload deve ser array.
-2. Limite maximo de 500 itens por request.
-3. Processamento parcial: nunca aborta lote inteiro por erro em um item.
-4. Retorno com dois arrays: `created` e `errors`.
-5. `index` em `errors` usa base 0.
-6. `is_active` e forcado para `true` no backend.
-7. Se `category` vier `null`, backend normaliza para `OPERACIONAL`.
-8. Se `installment_value` for enviado:
-   - valida que `total_installments >= 1`
-   - valida que `amount == installment_value * total_installments`
-   - ajusta `is_installment=true` quando `total_installments >= 2`
-
-### Resposta esperada
-
-```json
-{
-  "created": [
-    { "id": 1, "title": "Aluguel da Sala" }
-  ],
-  "errors": [
-    { "index": 2, "detail": "Mensagem de erro para linha 2" }
-  ]
-}
-```
-
-## 7) Adiar parcela (deferral)
-
-### Endpoint
+## 7) Defer installment
 
 ```http
 POST /api/expenses/defer-installment/{installment_id}/
 ```
 
-### Payload exemplo
+Example payload:
 
 ```json
 {
@@ -290,66 +178,24 @@ POST /api/expenses/defer-installment/{installment_id}/
 }
 ```
 
-### Comportamento
+Behavior:
 
-1. Cria registro de adiamento (deferral) para a parcela.
-2. Atualiza `due_date` da parcela para `new_date`.
-3. Se `penalty_amount` for enviado, soma ao valor da parcela.
-4. Retorna dados do deferral criado.
+1. Creates deferral entry.
+2. Updates installment `due_date`.
+3. Adds penalty to installment amount when provided.
 
-## 8) Resumo anual
-
-### Endpoint
+## 8) Yearly summary
 
 ```http
 GET /api/expenses/yearly-summary/
 ```
 
-### Comportamento
+Returns grouped summary and dashboard section per period, plus total bank balance.
 
-1. Considera janela de aproximadamente 12 meses (de hoje para tras).
-2. Agrupa por periodo `YYYY-MM`.
-3. Retorna:
-   - lista de expenses por mes
-   - total por mes
-   - bloco dashboard com entradas, a receber, saidas e saldo liquido
-   - saldo total em conta
+## Frontend Checklist
 
-### Estrutura de resposta (resumo)
-
-```json
-{
-  "summary": [
-    {
-      "period": "2026-10",
-      "total_amount": 5099.9,
-      "expenses": [],
-      "dashboard": {
-        "entradas_do_mes": 0,
-        "a_receber": 0,
-        "saidas_do_mes": 5099.9,
-        "saldo_liquido": -5099.9
-      }
-    }
-  ],
-  "total_bank_balance": 12000.0
-}
-```
-
-## Erros comuns e tratamento sugerido
-
-1. `400 Payload deve ser um array de objetos.`
-2. `400 Maximo de 500 registros por importacao.`
-3. `400 O usuario nao possui nenhuma empresa vinculada...`
-4. `400 amount deve ser igual a installment_value * total_installments.`
-5. `400 year/month invalidos na listagem filtrada.`
-
-No frontend, trate cada erro de import por item usando `errors[index]`.
-
-## Checklist rapido para frontend
-
-1. Sempre enviar token JWT.
-2. Para import, enviar array e tratar `created` + `errors`.
-3. Em parcelamento, confira consistencia de `amount`, `total_installments` e `installment_value`.
-4. Ao usar listagem por mes, envie `year` e `month` juntos.
-5. Ao marcar pago/nao pago, esperar reflexo em todas as parcelas.
+1. Always send JWT.
+2. For import, send array and handle `created` plus `errors`.
+3. For installments, keep `amount`, `total_installments`, `installment_value` consistent.
+4. For filtered list, send `year` and `month` together.
+5. Paid/unpaid state affects all installments.
