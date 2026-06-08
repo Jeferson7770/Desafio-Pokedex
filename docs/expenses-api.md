@@ -76,6 +76,18 @@ Content-Type: application/json
 
 ### `category`
 
+- `PESSOAL_E_REMUNERACAO`
+- `CUSTAS_PROCESSUAIS_E_JUDICIAIS`
+- `FINANCEIRA`
+- `CAPACITACAO_E_DESENVOLVIMENTO`
+- `FISCAL_E_OBRIGACOES_LEGAIS`
+- `ESTRUTURA_E_OPERACAO`
+- `TECNOLOGIA_E_ASSINATURA`
+- `MARKETING_E_AQUISICAO`
+- `MOBILIDADE_E_DESLOCAMENTO`
+- `INVESTIMENTOS_NO_ESCRITORIO`
+- `A_CLASSIFICAR`
+- Legados aceitos por compatibilidade:
 - `ESTRUTURA`
 - `PESSOAS`
 - `IMPOSTOS`
@@ -160,7 +172,7 @@ Rules implemented:
 4. Response always includes `created` and `errors`.
 5. `errors[index]` is 0-based.
 6. Backend forces `is_active=true`.
-7. If `category` is `null`, backend normalizes to `OPERACIONAL`.
+7. If `category` is `null`, backend normalizes to `OPERACIONAL` (legado).
 8. If `installment_value` is sent, backend validates consistency with `amount` and `total_installments`.
 
 ## 7) Defer installment

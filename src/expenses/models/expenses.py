@@ -9,10 +9,22 @@ class Expense(models.Model):
         YEARLY = "ANNUAL", "Annual"
 
     class Category(models.TextChoices):
-        ESTRUTURA = "ESTRUTURA", "Infrastructure"
-        PESSOAS = "PESSOAS", "People"
-        IMPOSTOS = "IMPOSTOS", "Taxes"
-        OPERACIONAL = "OPERACIONAL", "Operational"
+        PESSOAL_E_REMUNERACAO = "PESSOAL_E_REMUNERACAO", "Pessoal e Remuneração"
+        CUSTAS_PROCESSUAIS_E_JUDICIAIS = "CUSTAS_PROCESSUAIS_E_JUDICIAIS", "Custas Processuais e Judiciais"
+        FINANCEIRA = "FINANCEIRA", "Financeira"
+        CAPACITACAO_E_DESENVOLVIMENTO = "CAPACITACAO_E_DESENVOLVIMENTO", "Capacitação e Desenvolvimento"
+        FISCAL_E_OBRIGACOES_LEGAIS = "FISCAL_E_OBRIGACOES_LEGAIS", "Fiscal e Obrigações Legais"
+        ESTRUTURA_E_OPERACAO = "ESTRUTURA_E_OPERACAO", "Estrutura e Operação"
+        TECNOLOGIA_E_ASSINATURA = "TECNOLOGIA_E_ASSINATURA", "Tecnologia e Assinatura"
+        MARKETING_E_AQUISICAO = "MARKETING_E_AQUISICAO", "Marketing e Aquisição"
+        MOBILIDADE_E_DESLOCAMENTO = "MOBILIDADE_E_DESLOCAMENTO", "Mobilidade e Deslocamento"
+        INVESTIMENTOS_NO_ESCRITORIO = "INVESTIMENTOS_NO_ESCRITORIO", "Investimentos no Escritório"
+        A_CLASSIFICAR = "A_CLASSIFICAR", "A Classificar"
+
+        ESTRUTURA = "ESTRUTURA", "Estrutura"
+        PESSOAS = "PESSOAS", "Pessoas"
+        IMPOSTOS = "IMPOSTOS", "Impostos"
+        OPERACIONAL = "OPERACIONAL", "Operacional"
 
     class Priority(models.TextChoices):
         LEGAL = "LEGAL", "Legal / Critical"
@@ -27,7 +39,7 @@ class Expense(models.Model):
     due_date = models.DateField(help_text="Base date or first due date")
     
     frequency = models.CharField(max_length=20, choices=Frequency.choices, default=Frequency.ONE_TIME)
-    category = models.CharField(max_length=30, choices=Category.choices, default=Category.OPERACIONAL)
+    category = models.CharField(max_length=40, choices=Category.choices, default=Category.OPERACIONAL)
     priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.OPERACIONAL)
     
     is_paid = models.BooleanField(default=False)
