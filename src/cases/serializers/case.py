@@ -73,10 +73,20 @@ class ProcessSerializer(serializers.ModelSerializer):
         return process
 
     def update(self, instance, validated_data):
+        schedules_data = validated_data.pop("schedules", None)
+
         client = validated_data.get("client")
         if client:
             validated_data["client_name"] = client.name
-        return super().update(instance, validated_data)
+
+        instance = super().update(instance, validated_data)
+
+        if schedules_data is not None:
+            instance.schedules.all().delete()
+            for schedule in schedules_data:
+                CasePaymentSchedule.objects.create(case=instance, **schedule)
+
+        return instance
 
 
 class CaseSerializer(ProcessSerializer):
