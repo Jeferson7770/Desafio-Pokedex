@@ -40,6 +40,7 @@ class Expense(models.Model):
     
     frequency = models.CharField(max_length=20, choices=Frequency.choices, default=Frequency.ONE_TIME)
     category = models.CharField(max_length=40, choices=Category.choices, default=Category.OPERACIONAL)
+    subcategory = models.CharField(max_length=100, blank=True, default="")
     priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.OPERACIONAL)
     
     is_paid = models.BooleanField(default=False)

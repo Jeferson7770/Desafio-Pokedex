@@ -32,6 +32,8 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
         year = self.request.query_params.get("year")
         month = self.request.query_params.get("month")
+        start_date = self.request.query_params.get("start_date")
+        end_date = self.request.query_params.get("end_date")
 
         if year and month:
             try:
@@ -46,6 +48,11 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                     properties={"year_tentado": year, "month_tentado": month, "motivo": "valores_nao_inteiros"}
                 )
                 raise ValidationError("Os parâmetros 'year' e 'month' precisam ser números inteiros válidos.")
+
+        if start_date and end_date:
+            queryset = queryset.filter(due_date__range=[start_date, end_date])
+        elif start_date or end_date:
+            raise ValidationError("Os parâmetros 'start_date' e 'end_date' devem ser enviados juntos.")
 
         return queryset.order_by("due_date")
 

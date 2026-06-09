@@ -13,9 +13,14 @@ class AbacatePayService:
 
     def criar_checkout_assinatura(self, produto_id, external_id, metadata=None):
         url = f"{self.base_url}/subscriptions/create"
-        
-        completion_url = config("ABACATEPAY_COMPLETION_URL")
-        return_url = config("ABACATEPAY_RETURN_URL")
+
+        frontend_url = config("FRONTEND_URL", default="").rstrip("/")
+        if frontend_url:
+            completion_url = f"{frontend_url}/app/payment/success"
+            return_url = f"{frontend_url}/app/payment/return"
+        else:
+            completion_url = config("ABACATEPAY_COMPLETION_URL")
+            return_url = config("ABACATEPAY_RETURN_URL")
 
         payload = {
             "items": [

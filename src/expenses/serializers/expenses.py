@@ -32,7 +32,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
         model = Expense
         fields = [
             "id", "firm", "title", "description", "amount", "due_date",
-            "frequency", "category", "category_display", "priority", 
+            "frequency", "category", "subcategory", "category_display", "priority", 
             "priority_display", "is_paid", "paid_at", "is_active", 
             "is_installment", "total_installments", "installment_value",
             "interest_rate_month", "installments", "created_at",
