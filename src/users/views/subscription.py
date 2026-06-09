@@ -183,3 +183,27 @@ class CriarAssinaturaView(APIView):
                 }
             )
             raise e
+
+
+class ListarPlanosView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        service = AbacatePayService()
+        produtos = service.listar_produtos()
+
+        planos = [
+            {
+                "id": p.get("id"),
+                "name": p.get("name"),
+                "description": p.get("description"),
+                "price": p.get("price"),          # centavos
+                "currency": p.get("currency", "BRL"),
+                "cycle": p.get("cycle"),
+                "imageUrl": p.get("imageUrl"),
+                "status": p.get("status"),
+            }
+            for p in produtos
+        ]
+
+        return Response({"data": planos}, status=status.HTTP_200_OK)

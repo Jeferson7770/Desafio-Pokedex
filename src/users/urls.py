@@ -3,7 +3,7 @@ from django.urls import path
 from ..users.views.notifications import NotificationSettingViewSet
 
 from .views.billing import SubscriptionViewSet
-from .views.subscription import CriarAssinaturaView
+from .views.subscription import CriarAssinaturaView, ListarPlanosView
 from ..users.views.laywer import LawyerProfileViewSet
 from .views.register import RegisterView
 from .views.login import LoginView
@@ -33,6 +33,7 @@ urlpatterns = [
         'post': 'prepare_cancel'
     })),
     path('subscription/checkout/', CriarAssinaturaView.as_view()),
+    path('subscription/planos/', ListarPlanosView.as_view()),
     path('billing/subscription/checkout/', CriarAssinaturaView.as_view()),
     path('notifications/settings/', NotificationSettingViewSet.as_view({
         'get': 'list',

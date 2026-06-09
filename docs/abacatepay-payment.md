@@ -1,57 +1,134 @@
 # AbacatePay Payment Integration Guide
 
-This document explains how the current AbacatePay subscription checkout flow works in the backend and how the frontend should integrate with it safely.
+This document describes the complete subscription payment flow between the frontend, the Fincecore backend, and the AbacatePay gateway.
 
 ## 1. Overview
 
-The subscription payment flow has three steps:
+The full integration has three steps:
 
-1. Backend creates a subscription checkout on AbacatePay.
-2. Backend returns the checkout URL to the frontend.
-3. Frontend redirects the user to AbacatePay hosted checkout.
+1. **List plans** — frontend fetches available products from the backend, which proxies AbacatePay's product catalog.
+2. **User selects a plan** — frontend presents the options; user picks one.
+3. **Create checkout** — frontend sends the chosen product ID to the backend, which creates a subscription checkout on AbacatePay and returns a hosted checkout URL.
 
 Main files:
 
-- `src/finance/services/abacatepay.py`
-- `src/users/views/subscription.py`
-- `src/firms/models/subscription.py`
+- `src/finance/services/abacatepay.py` — `AbacatePayService`
+- `src/users/views/subscription.py` — `ListarPlanosView`, `CriarAssinaturaView`
+- `src/firms/models/subscription.py` — `Plan`, `FirmSubscription`
 
-## 2. Backend Integration with AbacatePay
+---
 
-Service: `AbacatePayService` in `src/finance/services/abacatepay.py`.
+## 2. Step 1 — Fetch Available Plans
 
-### 2.1 Required configuration
-
-Environment variables used by the service:
-
-- `ABACATEPAY_API_KEY`
-- `ABACATEPAY_COMPLETION_URL`
-- `ABACATEPAY_RETURN_URL`
-
-### 2.2 External endpoint called
-
-- `POST https://api.abacatepay.com/v2/subscriptions/create`
-
-Request headers:
+### 2.1 Backend endpoint
 
 ```http
+GET /api/auth/subscription/planos/
+Authorization: Bearer <JWT token>
+```
+
+The backend calls `GET https://api.abacatepay.com/v2/products/list` internally, filters for `ACTIVE` products, and returns a normalized list.
+
+**Response `200`:**
+
+```json
+{
+  "data": [
+    {
+      "id": "prod_abc123xyz",
+      "name": "Professional Plan",
+      "description": "Full access for law firms",
+      "price": 19900,
+      "currency": "BRL",
+      "cycle": "MONTHLY",
+      "imageUrl": null,
+      "status": "ACTIVE"
+    }
+  ]
+}
+```
+
+> **Note on `price`:** value is in cents. Divide by 100 to display (e.g. `19900` → R$199,00).
+
+### 2.2 AbacatePay external call
+
+```http
+GET https://api.abacatepay.com/v2/products/list?limit=100
+Authorization: Bearer <ABACATEPAY_API_KEY>
+```
+
+Handled by `AbacatePayService.listar_produtos()` in `src/finance/services/abacatepay.py`.
+
+### 2.3 Frontend usage
+
+```ts
+const { data } = await api.get('/api/auth/subscription/planos/');
+// data.data is the list of plans — render them in your pricing UI
+```
+
+---
+
+## 3. Step 2 — User Selects a Plan
+
+The frontend renders the plan list and stores the chosen plan's `id` (e.g. `"prod_abc123xyz"`) locally. No backend call is needed at this step.
+
+---
+
+## 4. Step 3 — Create Subscription Checkout
+
+### 4.1 Backend endpoint
+
+```http
+POST /api/auth/subscription/checkout/
+Authorization: Bearer <JWT token>
+Content-Type: application/json
+```
+
+**Request body:**
+
+```json
+{
+  "plan_id": "prod_abc123xyz"
+}
+```
+
+`plan_id` accepts either the AbacatePay product ID (`prod_*`) or the internal numeric `Plan.id`.
+
+**Response `200`:**
+
+```json
+{
+  "checkout_url": "https://checkout.abacatepay.com/...",
+  "subscription_id": 42,
+  "status": "PENDING"
+}
+```
+
+### 4.2 What the backend does internally
+
+View: `CriarAssinaturaView` in `src/users/views/subscription.py`.
+
+1. Resolves `plan_id` to an active `Plan` record (creates a stub if it only exists in the gateway).
+2. Gets the authenticated user's firm via `firm_memberships.first()`.
+3. Creates or reuses a `FirmSubscription` with status `PENDING`.
+4. Calls `AbacatePayService.criar_checkout_assinatura()` → `POST https://api.abacatepay.com/v2/subscriptions/create`.
+5. Stores the returned billing ID in `FirmSubscription.abacatepay_billing_id`.
+6. Returns `checkout_url`, `subscription_id`, and `status`.
+
+### 4.3 AbacatePay external call
+
+```http
+POST https://api.abacatepay.com/v2/subscriptions/create
 Authorization: Bearer <ABACATEPAY_API_KEY>
 Content-Type: application/json
 ```
 
-### 2.3 Payload sent to AbacatePay
-
 ```json
 {
-  "items": [
-    {
-      "id": "<plan.abacatepay_product_id>",
-      "quantity": 1
-    }
-  ],
+  "items": [{ "id": "<plan.abacatepay_product_id>", "quantity": 1 }],
   "externalId": "<firm_subscription.id>",
-  "completionUrl": "<ABACATEPAY_COMPLETION_URL>",
-  "returnUrl": "<ABACATEPAY_RETURN_URL>",
+  "completionUrl": "<FRONTEND_URL>/app/payment/success",
+  "returnUrl": "<FRONTEND_URL>/app/payment/return",
   "methods": ["CARD"],
   "metadata": {
     "firm_id": "<firm uuid>",
@@ -61,121 +138,43 @@ Content-Type: application/json
 }
 ```
 
-Notes:
-
-- The item uses `Plan.abacatepay_product_id`.
-- `externalId` links the checkout to internal `FirmSubscription`.
-- Payment method is currently fixed as `CARD`.
-
-### 2.4 Backend response handling
-
-When gateway response is successful (`status_code == 200`), backend expects:
-
-- `data.id` -> stored in `FirmSubscription.abacatepay_billing_id`
-- `data.url` -> returned to frontend as `checkout_url`
-
-Failure paths:
-
-- non-200 response -> `ValidationError` with gateway message
-- network/communication failure -> communication `ValidationError`
-
-## 3. Internal Subscription Flow
-
-View: `CriarAssinaturaView` in `src/users/views/subscription.py`.
-
-Current behavior:
-
-1. Receives `plan_id` in request body.
-2. Validates plan exists and is active (`Plan`).
-3. Gets authenticated user's firm (`firm_memberships.first()`).
-4. Creates or reuses `FirmSubscription` with status `PENDING`.
-5. Calls AbacatePay to create checkout.
-6. Saves `abacatepay_billing_id` in subscription.
-7. Returns:
-
-```json
-{
-  "checkout_url": "https://...",
-  "subscription_id": "<internal id>",
-  "status": "PENDING"
-}
-```
-
-## 4. Frontend Integration
-
-### 4.1 API contract
-
-```http
-POST /api/auth/subscription/checkout/
-Authorization: Bearer <JWT token>
-Content-Type: application/json
-```
-
-```json
-{
-  "plan_id": 1
-}
-```
-
-Expected `200` response:
-
-```json
-{
-  "checkout_url": "https://checkout.abacatepay...",
-  "subscription_id": 12,
-  "status": "PENDING"
-}
-```
-
-### 4.2 Redirect
+### 4.4 Frontend redirect
 
 ```ts
-const response = await api.post('/api/auth/subscription/checkout/', { plan_id });
-const { checkout_url } = response.data;
+const { data } = await api.post('/api/auth/subscription/checkout/', { plan_id: selectedPlanId });
+const { checkout_url } = data;
 
 if (!checkout_url) {
-  throw new Error('Checkout did not return a valid URL');
+  throw new Error('No checkout URL returned');
 }
 
 window.location.href = checkout_url;
 ```
 
-### 4.3 Return URLs
+Store `subscription_id` locally so you can resume the UX after the redirect.
 
-Backend sends two URLs to AbacatePay:
+### 4.5 Return URLs
 
-- `completionUrl`: success page
-- `returnUrl`: return/back page
+After payment, AbacatePay redirects to one of:
 
-Frontend should provide both UX states.
+- `completionUrl` (`/app/payment/success`) — payment was completed.
+- `returnUrl` (`/app/payment/return`) — user navigated back without completing.
 
-### 4.4 Post-checkout flow
+Both are derived from `FRONTEND_URL` env var on the backend.
 
-After user returns from AbacatePay:
+---
 
-1. Show "payment processing" state.
-2. Poll or fetch current subscription endpoint.
-3. Update UI when status becomes `ACTIVE`.
+## 5. Post-Checkout Flow
 
-Do not grant premium access only from URL query params.
+After the user lands back on the frontend:
 
-## 5. Current Gaps
+1. Show a "processing payment" state — do **not** grant access based on URL params alone.
+2. Poll `GET /api/auth/billing/subscription/` or re-fetch subscription status from the backend.
+3. Update the UI when status transitions to `ACTIVE`.
 
-Important known gaps in current codebase:
+---
 
-1. Checkout view is now registered in `src/users/urls.py`, including two routes.
-2. There is no AbacatePay webhook endpoint yet for async confirmation.
-3. In `src/users/views/billing.py`, upgrade and cancel endpoints still return `501`.
-
-## 6. Recommended Hardening Checklist
-
-1. Add webhook endpoint with signature validation.
-2. Update `FirmSubscription.status` from payment events.
-3. Persist cycle end (`current_period_end`) from confirmed events.
-4. Add idempotency by `abacatepay_billing_id` and/or provider event ID.
-5. Keep frontend status driven by backend state, never directly by provider callback params.
-
-## 7. Ideal Architecture
+## 6. Full Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -183,26 +182,49 @@ sequenceDiagram
   participant BE as Backend (Django)
   participant AB as AbacatePay
 
-  FE->>BE: POST /checkout (plan_id)
+  FE->>BE: GET /subscription/planos/
+  BE->>AB: GET /v2/products/list
+  AB-->>BE: { data: [...products] }
+  BE-->>FE: { data: [...plans] }
+
+  Note over FE: User selects a plan
+
+  FE->>BE: POST /subscription/checkout/ { plan_id }
   BE->>AB: POST /v2/subscriptions/create
   AB-->>BE: { data: { id, url } }
-  BE-->>FE: { checkout_url, subscription_id, status:PENDING }
+  BE-->>FE: { checkout_url, subscription_id, status: PENDING }
   FE->>AB: Redirect to checkout_url
-  AB-->>FE: Redirect to completionUrl/returnUrl
-  AB->>BE: Payment webhook
-  BE-->>BE: Update subscription to ACTIVE/EXPIRED/CANCELLED
-  FE->>BE: GET subscription status
-  BE-->>FE: Official subscription status
+
+  AB-->>FE: Redirect to completionUrl or returnUrl
+  AB->>BE: Webhook (payment event) [not yet implemented]
+  BE-->>BE: Update FirmSubscription status
+
+  FE->>BE: GET /billing/subscription/
+  BE-->>FE: { status: ACTIVE }
 ```
 
-## 8. Frontend Golden Rules
+---
 
-1. Always create checkout through backend.
-2. Never expose provider API keys in client apps.
-3. Use backend subscription status as source of truth.
-4. Handle network errors and retries.
-5. Keep local context (`subscription_id`, `plan_id`) to resume UX after redirect.
+## 7. Environment Variables
 
-## 9. Executive Summary
+| Variable | Purpose |
+|---|---|
+| `ABACATEPAY_API_KEY` | API key for all gateway calls |
+| `FRONTEND_URL` | Base URL used to build `completionUrl` and `returnUrl` |
+| `ABACATEPAY_COMPLETION_URL` | Fallback if `FRONTEND_URL` is not set |
+| `ABACATEPAY_RETURN_URL` | Fallback if `FRONTEND_URL` is not set |
 
-The project already supports generating AbacatePay checkout links and redirecting users. Production readiness depends on async webhook reconciliation and completion of upgrade/cancel gateway flows.
+---
+
+## 8. Known Gaps
+
+1. No webhook endpoint yet — `FirmSubscription.status` is not updated automatically after payment.
+2. Upgrade and cancel flows in `src/users/views/billing.py` still return `501`.
+
+## 9. Hardening Checklist
+
+1. Add webhook endpoint with signature validation.
+2. Update `FirmSubscription.status` from webhook payment events.
+3. Persist `current_period_end` from confirmed subscription events.
+4. Add idempotency guard by `abacatepay_billing_id` / provider event ID.
+5. Never trust frontend-supplied payment status — always verify via backend state.

@@ -49,3 +49,23 @@ class AbacatePayService:
             })
         except requests.RequestException as e:
             raise ValidationError({"detail": f"Falha catastrófica de comunicação com gateway: {str(e)}"})
+
+    def listar_produtos(self, limit=100, status_filter="ACTIVE"):
+        url = f"{self.base_url}/products/list"
+        params = {"limit": limit}
+
+        try:
+            response = requests.get(url, headers=self.headers, params=params)
+
+            if response.status_code == 200:
+                data = response.json()
+                produtos = data.get("data", [])
+                if status_filter:
+                    produtos = [p for p in produtos if p.get("status") == status_filter]
+                return produtos
+
+            raise ValidationError({
+                "detail": f"Erro retornado pela AbacatePay ({response.status_code}): {response.text}"
+            })
+        except requests.RequestException as e:
+            raise ValidationError({"detail": f"Falha de comunicação com gateway ao listar produtos: {str(e)}"})
