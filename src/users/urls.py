@@ -8,11 +8,14 @@ from ..users.views.laywer import LawyerProfileViewSet
 from .views.register import RegisterView
 from .views.login import LoginView
 from .views.logout import LogoutView
+from .views.google_auth import GoogleRegisterView, GoogleLoginView
 
 urlpatterns = [
     path('register/', RegisterView.as_view()),
     path('login/', LoginView.as_view()),
     path('logout/', LogoutView.as_view()),
+    path('auth/google/register/', GoogleRegisterView.as_view()),
+    path('auth/google/login/', GoogleLoginView.as_view()),
     path('laywer-profile/', LawyerProfileViewSet.as_view({
         'get': 'list',
         'post': 'create',
