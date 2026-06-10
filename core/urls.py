@@ -7,7 +7,7 @@ from drf_spectacular.views import (
 )
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path("fince-admin/", admin.site.urls),
     path("api/auth/", include("src.users.urls")),
     path("api/firms/", include("src.firms.urls")),
     path("api/expenses/", include("src.expenses.urls")),
