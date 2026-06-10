@@ -14,8 +14,8 @@ urlpatterns = [
     path('register/', RegisterView.as_view()),
     path('login/', LoginView.as_view()),
     path('logout/', LogoutView.as_view()),
-    path('auth/google/register/', GoogleRegisterView.as_view()),
-    path('auth/google/login/', GoogleLoginView.as_view()),
+    path('google/register/', GoogleRegisterView.as_view()),
+    path('google/login/', GoogleLoginView.as_view()),
     path('laywer-profile/', LawyerProfileViewSet.as_view({
         'get': 'list',
         'post': 'create',
