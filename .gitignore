@@ -168,6 +168,9 @@ poetry.toml
 
 poetry.lock.old
 
+# poetry.lock is intentionally tracked for reproducible builds
+
+
 *.ipynb_checkpoints
 
 .mr.developer.cfg
