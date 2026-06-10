@@ -108,6 +108,7 @@ DATABASES = {
 }
 
 POSTHOG_API_KEY = config("POSTHOG_API_KEY", default=None)
+ABACATEPAY_WEBHOOK_SECRET = config("ABACATEPAY_WEBHOOK_SECRET", default="")
 
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default=None)
 POSTHOG_HOST = config("POSTHOG_HOST", default="https://us.i.posthog.com")

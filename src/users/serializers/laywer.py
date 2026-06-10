@@ -1,10 +1,10 @@
 from rest_framework import serializers
+from django.utils import timezone
 from ..models.laywer import LawyerProfile
 from ..models.device import UserDevice
 from ...finance.models.dinheiro import BankAccount
 
-from .billing import SubscriptionSerializer 
-from .notifications import NotificationSettingSerializer 
+from .notifications import NotificationSettingSerializer
 
 class OfficeProfileSerializer(serializers.Serializer):
     office_name = serializers.SerializerMethodField()
@@ -30,7 +30,7 @@ class UserDeviceSerializer(serializers.ModelSerializer):
 class LawyerProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", read_only=True)
     devices = UserDeviceSerializer(source="user.devices", many=True, read_only=True)
-    billing = SubscriptionSerializer(source="user.subscription", read_only=True, allow_null=True)
+    billing = serializers.SerializerMethodField()
     notifications = NotificationSettingSerializer(source="user.notification_settings", read_only=True, allow_null=True)
     
     has_bank_connected = serializers.SerializerMethodField()
@@ -75,18 +75,43 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "has_bank_connected", "email", "devices", "billing", "notifications", "office_profile"]
 
     def get_has_bank_connected(self, obj) -> bool:
-        """
-        🚀 Busca a primeira firma do usuário e verifica se ela possui alguma conta 
-        bancária conectada (com external_account_id preenchido da Pluggy).
-        """
         membership = obj.user.firm_memberships.first()
         if not membership:
             return False
-            
         return BankAccount.objects.filter(
-            firm=membership.firm, 
+            firm=membership.firm,
             external_account_id__isnull=False
         ).exists()
+
+    def get_billing(self, obj):
+        try:
+            membership = obj.user.firm_memberships.select_related(
+                'firm__subscription__plan'
+            ).first()
+            if not membership:
+                return None
+            sub = getattr(membership.firm, 'subscription', None)
+            if not sub:
+                return None
+            is_active = sub.status == 'ACTIVE' and (
+                sub.current_period_end is None or sub.current_period_end > timezone.now()
+            )
+            return {
+                "status": sub.status,
+                "is_premium_active": is_active,
+                "next_renewal": (
+                    sub.current_period_end.strftime("%d/%m/%Y")
+                    if sub.current_period_end else None
+                ),
+                "plan_details": {
+                    "id": sub.plan.id,
+                    "name": sub.plan.name,
+                    "price": str(sub.plan.price),
+                    "cycle": sub.plan.cycle,
+                } if sub.plan_id else None,
+            }
+        except Exception:
+            return None
 
     def get_office_profile(self, obj):
         return OfficeProfileSerializer(obj).data

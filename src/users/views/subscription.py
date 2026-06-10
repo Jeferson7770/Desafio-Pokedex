@@ -188,6 +188,11 @@ class CriarAssinaturaView(APIView):
 class ListarPlanosView(APIView):
     permission_classes = [IsAuthenticated]
 
+    _CYCLE_MAP = {
+        "ANNUALLY": "ANNUAL",
+        "SEMIANNUALLY": "SEMIANNUAL",
+    }
+
     def get(self, request):
         service = AbacatePayService()
         produtos = service.listar_produtos()
@@ -197,9 +202,9 @@ class ListarPlanosView(APIView):
                 "id": p.get("id"),
                 "name": p.get("name"),
                 "description": p.get("description"),
-                "price": p.get("price"),          # centavos
+                "price": p.get("price"),
                 "currency": p.get("currency", "BRL"),
-                "cycle": p.get("cycle"),
+                "cycle": self._CYCLE_MAP.get(p.get("cycle", ""), p.get("cycle")),
                 "imageUrl": p.get("imageUrl"),
                 "status": p.get("status"),
             }

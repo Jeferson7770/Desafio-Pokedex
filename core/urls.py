@@ -5,6 +5,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
     SpectacularRedocView,
 )
+from src.firms.views.webhook import AbacatePayWebhookView
 
 urlpatterns = [
     path("fince-admin/", admin.site.urls),
@@ -23,6 +24,7 @@ urlpatterns = [
     path("api/other-income/", include("src.other_income.urls")),
     path("api/outras-entradas/", include("src.other_income.urls")),
     path("api/cases/", include("src.cases.urls")),
+    path("api/webhooks/abacatepay/", AbacatePayWebhookView.as_view()),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
