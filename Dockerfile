@@ -2,7 +2,7 @@ FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV POETRY_VERSION=1.8.3
+ENV POETRY_VERSION=2.2.1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl build-essential \
