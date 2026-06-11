@@ -79,7 +79,7 @@ class FinanceDashboardSummaryView(APIView):
             expense__is_active=True,
             due_date__year=year,
             due_date__month=month,
-            is_paid=False
+            is_paid=True
         ).aggregate(total=Sum("amount"))["total"] or 0.0
 
         saldo_liquido = entradas_mes - float(saidas_mes)

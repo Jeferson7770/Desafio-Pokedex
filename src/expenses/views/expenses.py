@@ -214,7 +214,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             key = f"{item['ano']}-{str(item['mes']).zfill(2)}"
             if key in aggregated_data:
                 total_val = float(item['total'] or 0.0)
-                if not item['is_paid']:
+                if item['is_paid']:
                     aggregated_data[key]["dashboard"]["saidas_do_mes"] = total_val
 
         for period, period_data in aggregated_data.items():
