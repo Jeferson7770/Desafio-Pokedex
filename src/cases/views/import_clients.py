@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 
 from ..models.case_structure import Client
 from ..serializers.case import ClientSerializer, ProcessSerializer
+from ...users.utils.telemetry import track_event
 
 
 class ClientImportView(APIView):
@@ -177,6 +178,16 @@ class ClientImportView(APIView):
                         "detail": str(e),
                     }
                 )
+
+        track_event(
+            user=request.user,
+            event_name="clientes_importados",
+            properties={
+                "total_enviados": len(items),
+                "total_criados": len(created_items),
+                "total_erros": len(error_items),
+            },
+        )
 
         return Response(
             {

@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 from ..serializers.expenses import ExpenseSerializer
 from ..models.expenses import Expense
+from ...users.utils.telemetry import track_event
 
 class ExpenseImportView(APIView):
     permission_classes = [IsAuthenticated]
@@ -111,6 +112,16 @@ class ExpenseImportView(APIView):
                     "index": index,
                     "detail": f"{first_field}: {str(first_error)}"
                 })
+
+        track_event(
+            user=request.user,
+            event_name="despesas_importadas",
+            properties={
+                "total_enviados": len(items),
+                "total_criados": len(created_items),
+                "total_erros": len(error_items),
+            },
+        )
 
         return Response(
             {

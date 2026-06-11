@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..serializers.outras_entradas import OutraEntradaSerializer
+from ...users.utils.telemetry import track_event
 
 
 class OutraEntradaImportView(APIView):
@@ -72,6 +73,16 @@ class OutraEntradaImportView(APIView):
                         "detail": f"{first_field}: {str(first_error)}",
                     }
                 )
+
+        track_event(
+            user=request.user,
+            event_name="outras_entradas_importadas",
+            properties={
+                "total_enviados": len(items),
+                "total_criados": len(created_items),
+                "total_erros": len(error_items),
+            },
+        )
 
         return Response(
             {

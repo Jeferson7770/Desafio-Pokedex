@@ -10,6 +10,7 @@ from ...fees.models.honorarios import ParcelaHonorario
 from ...expenses.models.expenses import ParcelaDespesa
 from ...other_income.models.outras_entradas import OutraEntradaInstallment
 from ..models.dinheiro import BankAccount
+from ...users.utils.telemetry import track_event
 
 
 class FinanceDashboardSummaryView(APIView):
@@ -86,6 +87,12 @@ class FinanceDashboardSummaryView(APIView):
         saldo_em_conta = BankAccount.objects.filter(
             firm=firm
         ).aggregate(total=Sum("current_balance"))["total"] or 0.0
+
+        track_event(
+            user=user,
+            event_name="dashboard_financeiro_visualizado",
+            properties={"ano": year, "mes": month},
+        )
 
         return Response({
             "ano_referencia": year,

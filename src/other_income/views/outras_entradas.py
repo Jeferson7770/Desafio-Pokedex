@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 
 from ..models.outras_entradas import OutraEntrada, OutraEntradaInstallment
 from ..serializers.outras_entradas import OutraEntradaSerializer, OutraEntradaInstallmentSerializer
+from ...users.utils.telemetry import track_event
 
 
 class OutraEntradaViewSet(viewsets.ModelViewSet):
@@ -68,7 +69,24 @@ class OutraEntradaViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Autenticação necessária.")
 
         firm = self._get_user_firm(self.request.user)
-        serializer.save(firm=firm)
+        instance = serializer.save(firm=firm)
+        track_event(
+            user=self.request.user,
+            event_name="outra_entrada_criada_sucesso",
+            properties={
+                "outra_entrada_id": instance.id,
+                "amount": float(instance.amount),
+                "is_installment": instance.is_installment,
+            },
+        )
+
+    def perform_destroy(self, instance):
+        track_event(
+            user=self.request.user,
+            event_name="outra_entrada_deletada",
+            properties={"outra_entrada_id": instance.id, "title": instance.title},
+        )
+        instance.delete()
 
     @action(detail=True, methods=["patch"], url_path=r"installments/(?P<installment_pk>[^/.]+)")
     def update_installment(self, request, pk=None, installment_pk=None):
@@ -89,5 +107,16 @@ class OutraEntradaViewSet(viewsets.ModelViewSet):
         else:
             outra_entrada.status = OutraEntrada.Status.PENDENTE
         outra_entrada.save(update_fields=["status"])
+
+        track_event(
+            user=self.request.user,
+            event_name="outra_entrada_parcela_atualizada",
+            properties={
+                "outra_entrada_id": outra_entrada.id,
+                "installment_id": installment.id,
+                "novo_status": installment.status,
+                "outra_entrada_status": outra_entrada.status,
+            },
+        )
 
         return Response(serializer.data, status=status.HTTP_200_OK)
