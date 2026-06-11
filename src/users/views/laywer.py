@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Count
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -67,10 +68,12 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
         user.set_password(new_password)
         user.save()
 
-        tokens = OutstandingToken.objects.filter(user=user)
-        for token in tokens:
-            BlacklistedToken.objects.get_or_create(token=token)
-        
+        tokens = list(OutstandingToken.objects.filter(user=user))
+        BlacklistedToken.objects.bulk_create(
+            [BlacklistedToken(token=t) for t in tokens],
+            ignore_conflicts=True,
+        )
+
         UserDevice.objects.filter(user=user).delete()
 
         refresh = RefreshToken.for_user(user)
@@ -134,11 +137,13 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
         user = request.user
         current_token_jti = request.auth.get("jti") if request.auth else None
 
-        tokens = OutstandingToken.objects.filter(user=user)
-        for token in tokens:
-            if current_token_jti and token.jti == current_token_jti:
-                continue
-            BlacklistedToken.objects.get_or_create(token=token)
+        tokens_qs = OutstandingToken.objects.filter(user=user)
+        if current_token_jti:
+            tokens_qs = tokens_qs.exclude(jti=current_token_jti)
+        BlacklistedToken.objects.bulk_create(
+            [BlacklistedToken(token=t) for t in tokens_qs],
+            ignore_conflicts=True,
+        )
 
         if current_token_jti:
             UserDevice.objects.filter(user=user).exclude(refresh_token_id=current_token_jti).delete()
@@ -179,8 +184,7 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        memberships = user.firm_memberships.all()
-        firms_to_check = [m.firm for m in memberships]
+        firm_ids = list(user.firm_memberships.values_list("firm_id", flat=True))
 
         user_id = user.id
         user_email = user.email
@@ -188,22 +192,26 @@ class LawyerProfileViewSet(viewsets.ModelViewSet):
         from types import SimpleNamespace
         user_dump = SimpleNamespace(id=user_id, email=user_email, firm_memberships=user.firm_memberships)
 
-        tokens = OutstandingToken.objects.filter(user=user)
-        for token in tokens:
-            BlacklistedToken.objects.get_or_create(token=token)
+        tokens = list(OutstandingToken.objects.filter(user=user))
+        BlacklistedToken.objects.bulk_create(
+            [BlacklistedToken(token=t) for t in tokens],
+            ignore_conflicts=True,
+        )
 
+        from src.firms.models.firm_structure import Firm
         with transaction.atomic():
             user.delete()
-
-            for firm in firms_to_check:
-                if not firm.members.exists():
-                    firm.delete()
+            Firm.objects.filter(
+                id__in=firm_ids
+            ).annotate(
+                member_count=Count("members")
+            ).filter(member_count=0).delete()
 
         track_event(
             user=user_dump,
             event_name="usuario_excluiu_conta_sucesso",
             properties={
-                "escritorios_verificados_count": len(firms_to_check)
+                "escritorios_verificados_count": len(firm_ids)
             }
         )
 

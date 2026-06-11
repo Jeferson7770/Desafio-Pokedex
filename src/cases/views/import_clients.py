@@ -65,16 +65,27 @@ class ClientImportView(FirmMixin, APIView):
 
         return list(grouped.values())
 
-    def _check_existing_duplicates(self, firm_id, payload):
+    def _load_existing_sets(self, firm_id):
+        existing_cpfs = {
+            self._normalize_cpf_cnpj(v)
+            for v in Client.objects.filter(firm_id=firm_id).values_list("cpf_cnpj", flat=True)
+            if v
+        }
+        existing_emails = {
+            e.lower()
+            for e in Client.objects.filter(firm_id=firm_id).values_list("email", flat=True)
+            if e
+        }
+        return existing_cpfs, existing_emails
+
+    def _check_existing_duplicates(self, payload, existing_cpfs, existing_emails):
         cpf_cnpj = self._normalize_cpf_cnpj(payload.get("cpf_cnpj", ""))
         email = (payload.get("email") or "").strip().lower()
 
-        if cpf_cnpj:
-            for existing in Client.objects.filter(firm_id=firm_id).values_list("cpf_cnpj", flat=True):
-                if self._normalize_cpf_cnpj(existing) == cpf_cnpj:
-                    return "CPF/CNPJ já cadastrado"
+        if cpf_cnpj and cpf_cnpj in existing_cpfs:
+            return "CPF/CNPJ já cadastrado"
 
-        if email and Client.objects.filter(firm_id=firm_id, email__iexact=email).exists():
+        if email and email in existing_emails:
             return "E-mail já cadastrado"
 
         return None
@@ -105,6 +116,7 @@ class ClientImportView(FirmMixin, APIView):
         error_items = []
 
         grouped_items = self._group_payload(items)
+        existing_cpfs, existing_emails = self._load_existing_sets(firm_id)
 
         for grouped in grouped_items:
             index = grouped["index"]
@@ -121,7 +133,7 @@ class ClientImportView(FirmMixin, APIView):
                 continue
 
             payload = grouped["payload"]
-            duplicate_error = self._check_existing_duplicates(firm_id, payload)
+            duplicate_error = self._check_existing_duplicates(payload, existing_cpfs, existing_emails)
             if duplicate_error:
                 error_items.append(
                     {

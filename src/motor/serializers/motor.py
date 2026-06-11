@@ -31,12 +31,23 @@ class SimulacaoPrioridadeSerializer(serializers.ModelSerializer):
     def get_reference_period(self, obj):
         return obj.reference_date.strftime("%Y-%m")
 
+    def _get_all_items(self, obj):
+        if not hasattr(obj, "_items_all_cache"):
+            cache = obj._prefetched_objects_cache if hasattr(obj, "_prefetched_objects_cache") else {}
+            if "items" in cache:
+                obj._items_all_cache = list(obj.items.all())
+            else:
+                obj._items_all_cache = list(
+                    obj.items.select_related("parcela__expense").order_by("ordem")
+                )
+        return obj._items_all_cache
+
     def get_pagamentos_recomendados(self, obj):
-        itens = obj.items.filter(status_recomendacao="RECOMENDADO")
+        itens = [i for i in self._get_all_items(obj) if i.status_recomendacao == "RECOMENDADO"]
         return ItemSimulacaoPrioridadeSerializer(itens, many=True).data
 
     def get_pagamentos_nao_cobertos(self, obj):
-        itens = obj.items.filter(status_recomendacao="NAO_COBERTO")
+        itens = [i for i in self._get_all_items(obj) if i.status_recomendacao == "NAO_COBERTO"]
         return ItemSimulacaoPrioridadeSerializer(itens, many=True).data
 
 
