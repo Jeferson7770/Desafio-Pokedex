@@ -53,6 +53,9 @@ class Expense(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["-due_date"]
+
     def __str__(self):
         return f"{self.title} ({self.firm.name}) - R$ {self.amount}"
 

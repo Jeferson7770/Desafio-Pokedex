@@ -51,6 +51,9 @@ class Process(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["-created_at"]
+
     def save(self, *args, **kwargs):
         if self.client_id:
             self.client_name = self.client.name
