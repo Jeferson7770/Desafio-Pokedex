@@ -14,6 +14,8 @@ class OfficeProfileSerializer(serializers.Serializer):
     tax_regime = serializers.CharField()
 
     def get_office_name(self, obj) -> str:
+        if "office_name" in self.context:
+            return self.context["office_name"]
         membership = obj.user.firm_memberships.select_related('firm').first()
         return membership.firm.name if membership else ""
 
@@ -74,20 +76,28 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["created_at", "has_bank_connected", "email", "devices", "billing", "notifications", "office_profile"]
 
+    def _get_membership(self, obj):
+        """Single DB query shared by all SerializerMethodFields that need firm data."""
+        if not hasattr(obj, "_cached_membership"):
+            obj._cached_membership = (
+                obj.user.firm_memberships
+                .select_related("firm__subscription__plan")
+                .first()
+            )
+        return obj._cached_membership
+
     def get_has_bank_connected(self, obj) -> bool:
-        membership = obj.user.firm_memberships.first()
+        membership = self._get_membership(obj)
         if not membership:
             return False
         return BankAccount.objects.filter(
-            firm=membership.firm,
+            firm_id=membership.firm_id,
             external_account_id__isnull=False
         ).exists()
 
     def get_billing(self, obj):
         try:
-            membership = obj.user.firm_memberships.select_related(
-                'firm__subscription__plan'
-            ).first()
+            membership = self._get_membership(obj)
             if not membership:
                 return None
             sub = getattr(membership.firm, 'subscription', None)
@@ -114,7 +124,11 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
             return None
 
     def get_office_profile(self, obj):
-        return OfficeProfileSerializer(obj).data
+        membership = self._get_membership(obj)
+        office_name = membership.firm.name if membership else ""
+        return OfficeProfileSerializer(
+            obj, context={"office_name": office_name}
+        ).data
 
     def validate(self, attrs):
         request = self.context.get("request")

@@ -1,9 +1,6 @@
 import posthog
 
 def track_event(user, event_name, properties=None):
-    """
-    Envia eventos customizados para o PostHog amarrando o Usuário e a Firma (Escritório).
-    """
     if getattr(posthog, "disabled", False):
         return
 
@@ -15,11 +12,17 @@ def track_event(user, event_name, properties=None):
         "user_id": user.id,
     }
 
-    membership = getattr(user, "firm_memberships", None)
-    if membership and membership.exists():
-        firm = membership.first().firm
-        payload["firm_id"] = str(firm.id)
-        payload["firm_name"] = firm.name
+    if not hasattr(user, "_firm_telemetry_cache"):
+        user._firm_telemetry_cache = (
+            user.firm_memberships
+            .values("firm_id", "firm__name")
+            .first()
+        )
+
+    firm_data = user._firm_telemetry_cache
+    if firm_data:
+        payload["firm_id"] = str(firm_data["firm_id"])
+        payload["firm_name"] = firm_data["firm__name"]
 
     if properties:
         payload.update(properties)
