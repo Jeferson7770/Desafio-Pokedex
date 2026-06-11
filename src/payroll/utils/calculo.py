@@ -1,4 +1,3 @@
-import numpy as np
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Sum
@@ -72,7 +71,11 @@ class ProLaboreCalculator:
     def calcular_coeficiente_variacao(self):
         if self.faturamento_medio <= 0:
             return 0.0
-        std_dev = np.std(self.receitas_lista) if len(self.receitas_lista) > 1 else 0.0
+        valores = self.receitas_lista
+        if len(valores) < 2:
+            return 0.0
+        mean = sum(valores) / len(valores)
+        std_dev = (sum((x - mean) ** 2 for x in valores) / len(valores)) ** 0.5
         return (std_dev / self.faturamento_medio) * 100
 
     def _aplicar_travas(self, valor_bruto):
