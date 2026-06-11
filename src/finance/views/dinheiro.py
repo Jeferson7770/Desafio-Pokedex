@@ -17,20 +17,21 @@ from ...fees.models.honorarios import Honorario
 from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
 from ..services.pluggy import PluggyService  
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class BankAccountViewSet(viewsets.ModelViewSet):
+class BankAccountViewSet(FirmMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = BankAccountSerializer
 
     def get_queryset(self):
         return BankAccount.objects.filter(firm__members__user=self.request.user)
 
-    def _get_user_firm(self):
-        membership = self.request.user.firm_memberships.first()
-        if not membership:
+    def _get_firm_id_or_raise(self):
+        firm_id = self._get_firm_id()
+        if not firm_id:
             raise ValidationError({"detail": "O usuário precisa estar vinculado a um escritório para esta operação."})
-        return membership.firm
+        return firm_id
 
     def _aguardar_item_pluggy_atualizar(self, service, item_id, timeout_segundos=45):
         """
@@ -113,7 +114,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="pluggy/sincronizar")
     def pluggy_sincronizar(self, request):
-        firm = self._get_user_firm()
+        firm_id = self._get_firm_id_or_raise()
         item_id = request.data.get("item_id")
 
         if not item_id:
@@ -184,8 +185,8 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                     tipo_conta = conta.get("type", "BANK")
                     
                     bank_account, created = BankAccount.objects.update_or_create(
-                        firm=firm,
-                        external_account_id=id_conta_pluggy, 
+                        firm_id=firm_id,
+                        external_account_id=id_conta_pluggy,
                         defaults={
                             "name": nome_exibicao,
                             "current_balance": Decimal(str(saldo_atual)),
@@ -231,7 +232,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="pluggy/connect-token")
     def pluggy_connect_token(self, request):
-        self._get_user_firm()
+        self._get_firm_id_or_raise()
         try:
             service = PluggyService()
             token = service.gerar_connect_token()
@@ -251,8 +252,8 @@ class BankAccountViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="pluggy/atualizar-dashboard")
     def atualizar_saldos_dashboard(self, request):
-        firm = self._get_user_firm()
-        contas_open_finance = BankAccount.objects.filter(firm=firm, external_account_id__isnull=False)
+        firm_id = self._get_firm_id_or_raise()
+        contas_open_finance = BankAccount.objects.filter(firm_id=firm_id, external_account_id__isnull=False)
         
         track_event(
             user=request.user,
@@ -265,18 +266,18 @@ class BankAccountViewSet(viewsets.ModelViewSet):
         return Response({"message": "Saldos sincronizados em segundo plano automaticamente."}, status=status.HTTP_200_OK)
 
 
-class TransactionViewSet(viewsets.ModelViewSet):
+class TransactionViewSet(FirmMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = TransactionSerializer
 
     def get_queryset(self):
         return Transaction.objects.filter(account__firm__members__user=self.request.user)
 
-    def _get_user_firm(self):
-        membership = self.request.user.firm_memberships.first()
-        if not membership:
+    def _get_firm_id_or_raise(self):
+        firm_id = self._get_firm_id()
+        if not firm_id:
             raise ValidationError({"detail": "O usuário precisa estar vinculado a um escritório para esta operação."})
-        return membership.firm
+        return firm_id
 
     def perform_create(self, serializer):
         with db_transaction.atomic():
@@ -326,17 +327,17 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="cash-flow-summary")
     def cash_flow_summary(self, request):
-        firm = self._get_user_firm()
+        firm_id = self._get_firm_id_or_raise()
         hoje = datetime.date.today()
-        
+
         queryset = self.get_queryset()
         inflows = queryset.filter(transaction_type=Transaction.TransactionType.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
         outflows = queryset.filter(transaction_type=Transaction.TransactionType.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-        
-        saldo_bancario_total = BankAccount.objects.filter(firm=firm).aggregate(total=Sum('current_balance'))['total'] or Decimal('0.00')
-        
+
+        saldo_bancario_total = BankAccount.objects.filter(firm_id=firm_id).aggregate(total=Sum('current_balance'))['total'] or Decimal('0.00')
+
         honorarios_recebidos_mes = Honorario.objects.filter(
-            firm=firm,
+            firm_id=firm_id,
             status=Honorario.Status.RECEBIDO,
             date__year=hoje.year,
             date__month=hoje.month

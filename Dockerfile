@@ -38,4 +38,6 @@ CMD gunicorn core.wsgi:application \
     --threads 4 \
     --max-requests 1000 \
     --max-requests-jitter 100 \
-    --timeout 30
+    --timeout 30 \
+    --log-level warning \
+    --forwarded-allow-ips="*"

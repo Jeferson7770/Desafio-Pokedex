@@ -6,23 +6,13 @@ from django.utils import timezone
 from ..models.relatorios import FinancialReportSummary
 from ..serializers.relatorios import FinancialReportDashboardSerializer
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class FinancialReportViewSet(viewsets.ModelViewSet):
+class FinancialReportViewSet(FirmMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = FinancialReportSummary.objects.all()
     serializer_class = FinancialReportDashboardSerializer
-
-    def _get_user_firm(self, user):
-        """
-        Busca a firma do usuário através do relacionamento de memberships.
-        """
-        membership = user.firm_memberships.first()
-        if not membership:
-            raise ValidationError(
-                {"detail": "O usuário autenticado não possui uma empresa/firma vinculada ao seu perfil."}
-            )
-        return membership.firm
 
     def get_queryset(self):
         return self.queryset.filter(firm__members__user=self.request.user)
@@ -33,8 +23,10 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
         com base nos filtros de ano e mês (?year=2026&month=05).
         Retorna status 200 mesmo se não houver dados no banco para o período.
         """
-        firm = self._get_user_firm(request.user)
-        
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError({"detail": "O usuário autenticado não possui uma empresa/firma vinculada ao seu perfil."})
+
         now = timezone.now()
         
         try:
@@ -49,11 +41,11 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
             raise ValidationError({"detail": "Os parâmetros 'year' e 'month' devem ser inteiros válidos."})
 
         try:
-            report_instance = self.get_queryset().get(firm=firm, year=year, month=month)
+            report_instance = self.get_queryset().get(firm_id=firm_id, year=year, month=month)
             dados_existiam = True
         except FinancialReportSummary.DoesNotExist:
             report_instance = FinancialReportSummary(
-                firm=firm,
+                firm_id=firm_id,
                 year=year,
                 month=month,
                 total_revenue=0.00,
@@ -83,8 +75,10 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
         evitando duplicatas indesejadas no banco de dados.
         """
         user = request.user
-        firm = self._get_user_firm(user)
-        
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError({"detail": "O usuário autenticado não possui uma empresa/firma vinculada ao seu perfil."})
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -92,7 +86,7 @@ class FinancialReportViewSet(viewsets.ModelViewSet):
         month = serializer.validated_data.get('month')
 
         instance, created = FinancialReportSummary.objects.update_or_create(
-            firm=firm,
+            firm_id=firm_id,
             year=year,
             month=month,
             defaults=serializer.validated_data

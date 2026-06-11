@@ -38,8 +38,7 @@ INSTALLED_APPS = [
     "src.fees",
     "src.other_income",
     "src.suggestions",
-    "drf_spectacular",
-]
+] + (["drf_spectacular"] if DEBUG else [])
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",

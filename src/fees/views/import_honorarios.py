@@ -4,16 +4,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from ..serializers.honorarios import HonorarioSerializer
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class HonorarioImportView(APIView):
+class HonorarioImportView(FirmMixin, APIView):
     permission_classes = [IsAuthenticated]
-
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
-            return None
-        return membership.firm
 
     def post(self, request):
         items = request.data
@@ -43,8 +38,8 @@ class HonorarioImportView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        firm = self._get_user_firm(request.user)
-        if not firm:
+        firm_id = self._get_firm_id()
+        if not firm_id:
             track_event(
                 user=request.user,
                 event_name="honorarios_importacao_falha_estrutura",
@@ -70,7 +65,7 @@ class HonorarioImportView(APIView):
             
             if serializer.is_valid():
                 try:
-                    honorario_instance = serializer.save(firm=firm)
+                    honorario_instance = serializer.save(firm_id=firm_id)
                     created_items.append(HonorarioSerializer(honorario_instance).data)
                 except Exception as e:
                     error_items.append({

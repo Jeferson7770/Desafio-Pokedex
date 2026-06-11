@@ -4,16 +4,11 @@ from rest_framework.exceptions import ValidationError
 from ..models.case_structure import Client, Process
 from ..serializers.case import CaseSerializer, ClientSerializer, ProcessSerializer
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class BaseFirmScopedViewSet(viewsets.ModelViewSet):
+class BaseFirmScopedViewSet(FirmMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
-
-    def _get_user_firm(self):
-        membership = self.request.user.firm_memberships.first()
-        if not membership:
-            raise ValidationError("O usuario nao possui nenhuma empresa vinculada.")
-        return membership.firm
 
 
 class ClientViewSet(BaseFirmScopedViewSet):
@@ -25,7 +20,10 @@ class ClientViewSet(BaseFirmScopedViewSet):
         ).order_by("name")
 
     def perform_create(self, serializer):
-        client = serializer.save(firm=self._get_user_firm())
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError("O usuario nao possui nenhuma empresa vinculada.")
+        client = serializer.save(firm_id=firm_id)
         track_event(
             user=self.request.user,
             event_name="cliente_criado_sucesso",
@@ -50,7 +48,10 @@ class ProcessViewSet(BaseFirmScopedViewSet):
         ).select_related("client")
 
     def perform_create(self, serializer):
-        process = serializer.save(firm=self._get_user_firm())
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError("O usuario nao possui nenhuma empresa vinculada.")
+        process = serializer.save(firm_id=firm_id)
         track_event(
             user=self.request.user,
             event_name="processo_criado_sucesso",

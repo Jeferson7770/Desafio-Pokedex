@@ -7,8 +7,9 @@ from decimal import Decimal, InvalidOperation
 from ..serializers.expenses import ExpenseSerializer
 from ..models.expenses import Expense
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
-class ExpenseImportView(APIView):
+class ExpenseImportView(FirmMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def _normalize_payload(self, item):
@@ -46,31 +47,25 @@ class ExpenseImportView(APIView):
 
         return normalized
 
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
-            return None
-        return membership.firm
-
     def post(self, request):
         items = request.data
-        
+
         if not isinstance(items, list):
             return Response(
-                {"detail": "Payload deve ser um array de objetos."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        if len(items) > 500:
-            return Response(
-                {"detail": "Máximo de 500 registros por importação."}, 
+                {"detail": "Payload deve ser um array de objetos."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        firm = self._get_user_firm(request.user)
-        if not firm:
+        if len(items) > 500:
             return Response(
-                {"detail": "O usuário não possui nenhuma empresa vinculada para associar a importação."}, 
+                {"detail": "Máximo de 500 registros por importação."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            return Response(
+                {"detail": "O usuário não possui nenhuma empresa vinculada para associar a importação."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -98,7 +93,7 @@ class ExpenseImportView(APIView):
             
             if serializer.is_valid():
                 try:
-                    expense_instance = serializer.save(firm=firm)
+                    expense_instance = serializer.save(firm_id=firm_id)
                     created_items.append(ExpenseSerializer(expense_instance).data)
                 except Exception as e:
                     error_items.append({

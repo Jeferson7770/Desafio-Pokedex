@@ -18,9 +18,10 @@ from ...finance.models.dinheiro import Transaction
 from ...expenses.models.expenses import Expense, ParcelaDespesa
 from ..utils.calculo import calcular_pro_labore_escritorio
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class ProLaboreViewSet(viewsets.ModelViewSet):
+class ProLaboreViewSet(FirmMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = ProLaboreSimulationSerializer
 
@@ -28,12 +29,6 @@ class ProLaboreViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return ProLaboreSimulation.objects.filter(user=self.request.user)
-
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
-            raise ValidationError({"detail": "O usuário autenticado não possui empresa vinculada."})
-        return membership.firm
 
     def _build_comparison(self, paid_amount: Decimal, suggested_amount: Decimal | None):
         paid = Decimal(paid_amount or 0)
@@ -61,7 +56,9 @@ class ProLaboreViewSet(viewsets.ModelViewSet):
         }
 
     def _build_history_payload(self, request):
-        firm = self._get_user_firm(request.user)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError({"detail": "O usuário autenticado não possui empresa vinculada."})
 
         try:
             months = int(request.query_params.get("months", 12))
@@ -87,7 +84,7 @@ class ProLaboreViewSet(viewsets.ModelViewSet):
 
         monthly_paid = (
             ParcelaDespesa.objects.filter(
-                expense__firm=firm,
+                expense__firm_id=firm_id,
                 expense__is_active=True,
                 is_paid=True,
                 paid_at__isnull=False,

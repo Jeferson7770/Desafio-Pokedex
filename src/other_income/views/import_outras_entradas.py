@@ -5,16 +5,11 @@ from rest_framework.views import APIView
 
 from ..serializers.outras_entradas import OutraEntradaSerializer
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class OutraEntradaImportView(APIView):
+class OutraEntradaImportView(FirmMixin, APIView):
     permission_classes = [IsAuthenticated]
-
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
-            return None
-        return membership.firm
 
     def post(self, request):
         items = request.data
@@ -31,8 +26,8 @@ class OutraEntradaImportView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        firm = self._get_user_firm(request.user)
-        if not firm:
+        firm_id = self._get_firm_id()
+        if not firm_id:
             return Response(
                 {"detail": "O usuário não possui nenhuma empresa vinculada para associar a importação."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -55,7 +50,7 @@ class OutraEntradaImportView(APIView):
 
             if serializer.is_valid():
                 try:
-                    instance = serializer.save(firm=firm)
+                    instance = serializer.save(firm_id=firm_id)
                     created_items.append(OutraEntradaSerializer(instance).data)
                 except Exception as e:
                     error_items.append(

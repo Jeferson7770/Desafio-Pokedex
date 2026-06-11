@@ -7,21 +7,18 @@ from django.shortcuts import get_object_or_404
 from ..models.outras_entradas import OutraEntrada, OutraEntradaInstallment
 from ..serializers.outras_entradas import OutraEntradaSerializer, OutraEntradaInstallmentSerializer
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class OutraEntradaViewSet(viewsets.ModelViewSet):
+class OutraEntradaViewSet(FirmMixin, viewsets.ModelViewSet):
     serializer_class = OutraEntradaSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
-            raise ValidationError("O usuário não está vinculado a nenhuma empresa (firm).")
-        return membership.firm
-
     def get_queryset(self):
-        firm = self._get_user_firm(self.request.user)
-        queryset = OutraEntrada.objects.filter(firm=firm).prefetch_related("installments")
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError("O usuário não está vinculado a nenhuma empresa (firm).")
+        queryset = OutraEntrada.objects.filter(firm_id=firm_id).prefetch_related("installments")
 
         if self.action != "list":
             return queryset
@@ -68,8 +65,10 @@ class OutraEntradaViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             raise PermissionDenied("Autenticação necessária.")
 
-        firm = self._get_user_firm(self.request.user)
-        instance = serializer.save(firm=firm)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise PermissionDenied("Autenticação necessária.")
+        instance = serializer.save(firm_id=firm_id)
         track_event(
             user=self.request.user,
             event_name="outra_entrada_criada_sucesso",

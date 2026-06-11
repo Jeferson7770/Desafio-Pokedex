@@ -6,22 +6,18 @@ from django.shortcuts import get_object_or_404
 from ..models.honorarios import Honorario, ParcelaHonorario
 from ..serializers.honorarios import HonorarioSerializer, ParcelaHonorarioSerializer
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class HonorarioViewSet(viewsets.ModelViewSet):
+class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
     serializer_class = HonorarioSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
-            raise ValidationError("O usuário não está vinculado a nenhuma empresa (firm).")
-        return membership.firm
-
     def get_queryset(self):
-        user = self.request.user
-        firm = self._get_user_firm(user)
-        queryset = Honorario.objects.filter(firm=firm)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError("O usuário não está vinculado a nenhuma empresa (firm).")
+        queryset = Honorario.objects.filter(firm_id=firm_id)
 
         year = self.request.query_params.get("year")
         month = self.request.query_params.get("month")
@@ -87,8 +83,10 @@ class HonorarioViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             raise PermissionDenied("Autenticação necessária.")
 
-        firm = self._get_user_firm(user)
-        serializer.save(firm=firm)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError("O usuário não está vinculado a nenhuma empresa (firm).")
+        serializer.save(firm_id=firm_id)
 
     @action(detail=True, methods=["patch"], url_path=r"installments/(?P<installment_pk>[^/.]+)")
     def update_installment(self, request, pk=None, installment_pk=None):

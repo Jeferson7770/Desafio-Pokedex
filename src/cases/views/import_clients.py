@@ -9,16 +9,11 @@ from rest_framework.views import APIView
 from ..models.case_structure import Client
 from ..serializers.case import ClientSerializer, ProcessSerializer
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class ClientImportView(APIView):
+class ClientImportView(FirmMixin, APIView):
     permission_classes = [IsAuthenticated]
-
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
-            return None
-        return membership.firm
 
     def _normalize_cpf_cnpj(self, value):
         if not value:
@@ -70,16 +65,16 @@ class ClientImportView(APIView):
 
         return list(grouped.values())
 
-    def _check_existing_duplicates(self, firm, payload):
+    def _check_existing_duplicates(self, firm_id, payload):
         cpf_cnpj = self._normalize_cpf_cnpj(payload.get("cpf_cnpj", ""))
         email = (payload.get("email") or "").strip().lower()
 
         if cpf_cnpj:
-            for existing in Client.objects.filter(firm=firm).values_list("cpf_cnpj", flat=True):
+            for existing in Client.objects.filter(firm_id=firm_id).values_list("cpf_cnpj", flat=True):
                 if self._normalize_cpf_cnpj(existing) == cpf_cnpj:
                     return "CPF/CNPJ já cadastrado"
 
-        if email and Client.objects.filter(firm=firm, email__iexact=email).exists():
+        if email and Client.objects.filter(firm_id=firm_id, email__iexact=email).exists():
             return "E-mail já cadastrado"
 
         return None
@@ -99,8 +94,8 @@ class ClientImportView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        firm = self._get_user_firm(request.user)
-        if not firm:
+        firm_id = self._get_firm_id()
+        if not firm_id:
             return Response(
                 {"detail": "O usuário não possui nenhuma empresa vinculada para associar a importação."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -126,7 +121,7 @@ class ClientImportView(APIView):
                 continue
 
             payload = grouped["payload"]
-            duplicate_error = self._check_existing_duplicates(firm, payload)
+            duplicate_error = self._check_existing_duplicates(firm_id, payload)
             if duplicate_error:
                 error_items.append(
                     {
@@ -151,7 +146,7 @@ class ClientImportView(APIView):
                 with transaction.atomic():
                     client_serializer = ClientSerializer(data=client_data)
                     client_serializer.is_valid(raise_exception=True)
-                    client = client_serializer.save(firm=firm)
+                    client = client_serializer.save(firm_id=firm_id)
 
                     created_processes = []
                     for process in processes_data:
@@ -164,7 +159,7 @@ class ClientImportView(APIView):
                             context={"request": request},
                         )
                         process_serializer.is_valid(raise_exception=True)
-                        process_instance = process_serializer.save(firm=firm)
+                        process_instance = process_serializer.save(firm_id=firm_id)
                         created_processes.append(ProcessSerializer(process_instance).data)
 
                     created_client = ClientSerializer(client).data

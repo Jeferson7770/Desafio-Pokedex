@@ -8,21 +8,23 @@ from ..models.motor import SimulacaoPrioridade
 from ..serializers.motor import SimulacaoPrioridadeSerializer
 from ..utils.calculo_prioridade import MotorPrioridadeEngine
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
+from ...firms.models.firm_structure import Firm
 
 
-class MotorPrioridadeViewSet(viewsets.ReadOnlyModelViewSet):
+class MotorPrioridadeViewSet(FirmMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = SimulacaoPrioridadeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
+    def _get_firm_object(self):
+        firm_id = self._get_firm_id()
+        if not firm_id:
             raise ValidationError("O usuário não possui empresa vinculada.")
-        return membership.firm
+        return Firm.objects.get(pk=firm_id)
 
     def list(self, request, *args, **kwargs):
         """GET /api/motor/ (Cálculo dinâmico padrão inicial)"""
-        firm = self._get_user_firm(request.user)
+        firm = self._get_firm_object()
         hoje = timezone.localdate()
         
         engine = MotorPrioridadeEngine(firm=firm)
@@ -46,9 +48,9 @@ class MotorPrioridadeViewSet(viewsets.ReadOnlyModelViewSet):
         POST /api/motor/salvar-configuracao/
         Lê o array ordenado enviado pelo frontend e salva no banco mantendo essa ordem exata.
         """
-        firm = self._get_user_firm(request.user)
+        firm = self._get_firm_object()
         hoje = timezone.localdate()
-        
+
         recomendados = request.data.get("pagamentos_recomendados", [])
         nao_cobertos = request.data.get("pagamentos_nao_cobertos", [])
         itens_da_tela = recomendados + nao_cobertos

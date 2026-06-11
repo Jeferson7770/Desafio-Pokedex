@@ -12,17 +12,12 @@ from ...fees.models.honorarios import ParcelaHonorario
 from ...finance.models.dinheiro import BankAccount
 from ..serializers.expenses import ExpenseSerializer, ExpenseDeferralSerializer
 from ...users.utils.telemetry import track_event
+from ...users.utils.firm_mixin import FirmMixin
 
 
-class ExpenseViewSet(viewsets.ModelViewSet):
+class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
     serializer_class = ExpenseSerializer
     permission_classes = [permissions.IsAuthenticated]
-
-    def _get_user_firm(self, user):
-        membership = user.firm_memberships.first()
-        if not membership:
-            raise ValidationError("O usuário não possui nenhuma empresa vinculada.")
-        return membership.firm
 
     def get_queryset(self):
         queryset = Expense.objects.filter(
@@ -90,8 +85,10 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             raise PermissionDenied("Authentication required")
 
-        firm = self._get_user_firm(user)
-        serializer.save(firm=firm)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError("O usuário não possui nenhuma empresa vinculada.")
+        serializer.save(firm_id=firm_id)
 
     @action(detail=False, methods=["post"], url_path="defer-installment/(?P<installment_pk>[^/.]+)")
     def defer_installment(self, request, installment_pk=None):
@@ -143,7 +140,9 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="yearly-summary")
     def yearly_summary(self, request):
-        firm = self._get_user_firm(request.user)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            raise ValidationError("O usuário não possui nenhuma empresa vinculada.")
         today = timezone.localdate()
         
         try:
@@ -152,7 +151,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             start_date = today - datetime.timedelta(days=365)
 
         expenses = Expense.objects.filter(
-            firm=firm,
+            firm_id=firm_id,
             is_active=True,
             due_date__range=[start_date, today]
         ).prefetch_related('installments__deferrals').order_by("due_date")
@@ -162,7 +161,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         aggregated_data = {}
         for expense_data in serializer.data:
             due_date_str = expense_data["due_date"]
-            year_month = due_date_str[:7] 
+            year_month = due_date_str[:7]
 
             if year_month not in aggregated_data:
                 aggregated_data[year_month] = {
@@ -176,12 +175,12 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                         "saldo_liquido": 0.0
                     }
                 }
-            
+
             aggregated_data[year_month]["expenses"].append(expense_data)
             aggregated_data[year_month]["total_amount"] += float(expense_data["amount"])
 
         honorarios_bulk = ParcelaHonorario.objects.filter(
-            honorario__firm=firm,
+            honorario__firm_id=firm_id,
             due_date__range=[start_date, today]
         ).annotate(
             ano=ExtractYear('due_date'),
@@ -191,7 +190,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         )
 
         despesas_bulk = ParcelaDespesa.objects.filter(
-            expense__firm=firm,
+            expense__firm_id=firm_id,
             expense__is_active=True,
             due_date__range=[start_date, today]
         ).annotate(
@@ -221,7 +220,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             dash = period_data["dashboard"]
             dash["saldo_liquido"] = dash["entradas_do_mes"] - dash["saidas_do_mes"]
 
-        saldo_em_conta = BankAccount.objects.filter(firm=firm).aggregate(total=Sum("current_balance"))["total"] or 0.0
+        saldo_em_conta = BankAccount.objects.filter(firm_id=firm_id).aggregate(total=Sum("current_balance"))["total"] or 0.0
 
         sorted_summary = sorted(aggregated_data.values(), key=lambda x: x["period"], reverse=True)
 
