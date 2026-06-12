@@ -104,7 +104,7 @@ DATABASES = {
         default=config("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")
     )
 }
-DATABASES["default"]["CONN_MAX_AGE"] = 0
+DATABASES["default"]["CONN_MAX_AGE"] = 60
 
 POSTHOG_API_KEY = config("POSTHOG_API_KEY", default=None)
 ABACATEPAY_WEBHOOK_SECRET = config("ABACATEPAY_WEBHOOK_SECRET", default="")
