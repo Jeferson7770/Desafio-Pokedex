@@ -24,21 +24,24 @@ class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
 
         year = self.request.query_params.get("year")
         month = self.request.query_params.get("month")
+        start_date = self.request.query_params.get("start_date")
+        end_date = self.request.query_params.get("end_date")
 
-        if year:
+        if start_date and end_date:
             try:
-                int(year)
+                start = datetime.date.fromisoformat(start_date)
+                end = datetime.date.fromisoformat(end_date)
             except ValueError:
-                raise ValidationError("O parâmetro 'year' deve ser um número inteiro válido.")
-
-        if month:
+                raise ValidationError("Os parâmetros 'start_date' e 'end_date' devem estar no formato YYYY-MM-DD.")
+            queryset = queryset.filter(
+                installments__due_date__gte=start,
+                installments__due_date__lte=end,
+            ).distinct()
+        elif year and month:
             try:
-                int(month)
+                year_int, month_int = int(year), int(month)
             except ValueError:
-                raise ValidationError("O parâmetro 'month' deve ser um número inteiro válido.")
-
-        if year and month:
-            year_int, month_int = int(year), int(month)
+                raise ValidationError("Os parâmetros 'year' e 'month' devem ser inteiros válidos.")
             start = datetime.date(year_int, month_int, 1)
             end = datetime.date(year_int, month_int + 1, 1) if month_int < 12 else datetime.date(year_int + 1, 1, 1)
             queryset = queryset.filter(
@@ -46,7 +49,10 @@ class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
                 installments__due_date__lt=end,
             ).distinct()
         elif year:
-            year_int = int(year)
+            try:
+                year_int = int(year)
+            except ValueError:
+                raise ValidationError("O parâmetro 'year' deve ser um número inteiro válido.")
             queryset = queryset.filter(
                 installments__due_date__gte=datetime.date(year_int, 1, 1),
                 installments__due_date__lt=datetime.date(year_int + 1, 1, 1),
@@ -58,7 +64,9 @@ class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
         firm_id = self._get_firm_id()
         year = request.query_params.get("year", "all")
         month = request.query_params.get("month", "all")
-        cache_key = f"honorarios:{firm_id}:{year}:{month}"
+        start_date = request.query_params.get("start_date", "")
+        end_date = request.query_params.get("end_date", "")
+        cache_key = f"honorarios:{firm_id}:{year}:{month}:{start_date}:{end_date}"
 
         cached = cache.get(cache_key)
         if cached is not None:

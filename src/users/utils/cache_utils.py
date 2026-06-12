@@ -7,24 +7,33 @@ def _prev_month(year, month):
 
 
 def invalidar_cache_financeiro(firm_id):
-    """Dashboard, yearly-summary, honorarios, outras-entradas, relatorios e cash-flow do mês atual e anterior."""
-    today = timezone.localdate()
-    y, m = today.year, today.month
-    py, pm = _prev_month(y, m)
-
+    """
+    Invalida todo cache financeiro do firm.
+    Com Redis: usa delete_pattern para cobrir qualquer combinação de params (year/month, start_date/end_date).
+    Fallback para LocMemCache (desenvolvimento local): apaga chaves do mês atual e anterior.
+    """
     prefixes = ["dashboard", "yearly_summary", "honorarios", "outras_entradas",
                 "financial_report", "cash_flow_summary"]
-    keys = [
-        f"{p}:{firm_id}:{y}:{m}" for p in prefixes
-    ] + [
-        f"{p}:{firm_id}:{py}:{pm}" for p in prefixes
-    ]
-    cache.delete_many(keys)
+    try:
+        for p in prefixes:
+            cache.delete_pattern(f"{p}:{firm_id}:*")
+    except AttributeError:
+        today = timezone.localdate()
+        y, m = today.year, today.month
+        py, pm = _prev_month(y, m)
+        keys = (
+            [f"{p}:{firm_id}:{y}:{m}" for p in prefixes]
+            + [f"{p}:{firm_id}:{py}:{pm}" for p in prefixes]
+        )
+        cache.delete_many(keys)
 
 
 def invalidar_cache_motor(firm_id):
-    today = timezone.localdate()
-    cache.delete(f"motor_prioridade:{firm_id}:{today.year}:{today.month}")
+    try:
+        cache.delete_pattern(f"motor_prioridade:{firm_id}:*")
+    except AttributeError:
+        today = timezone.localdate()
+        cache.delete(f"motor_prioridade:{firm_id}:{today.year}:{today.month}")
 
 
 def invalidar_cache_prolabore(user_id):
