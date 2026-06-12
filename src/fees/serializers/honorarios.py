@@ -2,6 +2,7 @@ from rest_framework import serializers
 from ..models.honorarios import Honorario, ParcelaHonorario
 from dateutil.relativedelta import relativedelta
 from decimal import Decimal
+from django.utils import timezone
 
 class ParcelaHonorarioSerializer(serializers.ModelSerializer):
     late_interest_cost = serializers.ReadOnlyField()
@@ -47,7 +48,10 @@ class HonorarioSerializer(serializers.ModelSerializer):
             instance.installments.all().delete()
             self._generate_installments(instance)
         elif status_changed:
-            instance.installments.all().update(status=new_status)
+            update_fields = {"status": new_status}
+            if new_status == Honorario.Status.RECEBIDO:
+                update_fields["paid_at"] = timezone.now()
+            instance.installments.all().update(**update_fields)
 
         return instance
 

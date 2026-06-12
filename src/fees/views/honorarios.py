@@ -107,6 +107,10 @@ class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
         serializer.save(firm_id=firm_id)
         invalidar_cache_financeiro(firm_id)
 
+    def perform_update(self, serializer):
+        serializer.save()
+        invalidar_cache_financeiro(self._get_firm_id())
+
     @action(detail=True, methods=["patch"], url_path=r"installments/(?P<installment_pk>[^/.]+)")
     def update_installment(self, request, pk=None, installment_pk=None):
         honorario = self.get_object()
