@@ -32,6 +32,15 @@ class ProLaboreViewSet(FirmMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         return ProLaboreSimulation.objects.filter(user=self.request.user)
 
+    def perform_update(self, serializer):
+        serializer.save()
+        invalidar_cache_prolabore(self.request.user.id)
+
+    def perform_destroy(self, instance):
+        user_id = self.request.user.id
+        instance.delete()
+        invalidar_cache_prolabore(user_id)
+
     def _build_comparison(self, paid_amount: Decimal, suggested_amount: Decimal | None):
         paid = Decimal(paid_amount or 0)
         if not suggested_amount or suggested_amount <= 0:

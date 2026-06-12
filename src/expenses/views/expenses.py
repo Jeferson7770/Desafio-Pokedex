@@ -96,6 +96,15 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
         serializer.save(firm_id=firm_id)
         invalidar_cache_financeiro(firm_id)
 
+    def perform_update(self, serializer):
+        serializer.save()
+        invalidar_cache_financeiro(self._get_firm_id())
+
+    def perform_destroy(self, instance):
+        firm_id = self._get_firm_id()
+        instance.delete()
+        invalidar_cache_financeiro(firm_id)
+
     @action(detail=False, methods=["post"], url_path="defer-installment/(?P<installment_pk>[^/.]+)")
     def defer_installment(self, request, installment_pk=None):
         try:

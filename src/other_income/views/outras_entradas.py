@@ -97,13 +97,19 @@ class OutraEntradaViewSet(FirmMixin, viewsets.ModelViewSet):
             },
         )
 
+    def perform_update(self, serializer):
+        serializer.save()
+        invalidar_cache_financeiro(self._get_firm_id())
+
     def perform_destroy(self, instance):
+        firm_id = self._get_firm_id()
         track_event(
             user=self.request.user,
             event_name="outra_entrada_deletada",
             properties={"outra_entrada_id": instance.id, "title": instance.title},
         )
         instance.delete()
+        invalidar_cache_financeiro(firm_id)
 
     @action(detail=True, methods=["patch"], url_path=r"installments/(?P<installment_pk>[^/.]+)")
     def update_installment(self, request, pk=None, installment_pk=None):
