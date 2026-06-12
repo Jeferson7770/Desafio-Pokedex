@@ -158,11 +158,18 @@ class ProLaboreViewSet(FirmMixin, viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        all_transactions = Transaction.objects.all()
-        
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            return Response(
+                {"detail": "O usuário não possui nenhuma empresa vinculada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        firm_transactions = Transaction.objects.filter(account__firm_id=firm_id)
+
         calculos_objeto = calcular_pro_labore_escritorio(
-            user=user, 
-            transactions_queryset=all_transactions, 
+            user=user,
+            transactions_queryset=firm_transactions,
             tax_regime=profile.tax_regime
         )
 

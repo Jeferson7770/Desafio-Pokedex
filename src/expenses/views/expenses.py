@@ -35,10 +35,10 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
 
         if year and month:
             try:
-                queryset = queryset.filter(
-                    due_date__year=int(year),
-                    due_date__month=int(month)
-                )
+                year_int, month_int = int(year), int(month)
+                start = datetime.date(year_int, month_int, 1)
+                end = datetime.date(year_int, month_int + 1, 1) if month_int < 12 else datetime.date(year_int + 1, 1, 1)
+                queryset = queryset.filter(due_date__gte=start, due_date__lt=end)
             except ValueError:
                 track_event(
                     user=self.request.user,

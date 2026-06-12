@@ -1,3 +1,4 @@
+import datetime
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -49,7 +50,9 @@ class OutraEntradaViewSet(FirmMixin, viewsets.ModelViewSet):
             if month_int < 1 or month_int > 12:
                 raise ValidationError("O parâmetro 'month' deve estar entre 1 e 12.")
 
-            return queryset.filter(date__year=year_int, date__month=month_int)
+            start = datetime.date(year_int, month_int, 1)
+            end = datetime.date(year_int, month_int + 1, 1) if month_int < 12 else datetime.date(year_int + 1, 1, 1)
+            return queryset.filter(date__gte=start, date__lt=end)
 
         if not start_date or not end_date:
             raise ValidationError("Para filtro por período, informe os parâmetros start_date e end_date juntos.")

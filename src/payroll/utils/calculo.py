@@ -107,11 +107,11 @@ class ProLaboreServicePipeline:
     def __init__(self, transactions_queryset):
         self.queryset = transactions_queryset
 
-    def _identificar_perfil_e_periodo(self, user):
-        primeira_tx = self.queryset.filter(account__firm__members__user=user).order_by('date').first()
+    def _identificar_perfil_e_periodo(self):
+        primeira_tx = self.queryset.order_by('date').first()
         if not primeira_tx:
             return "INICIANTE", 3, "Conservador"
-        
+
         dias = (timezone.localdate() - primeira_tx.date).days
         meses = dias // 30
 
@@ -122,13 +122,10 @@ class ProLaboreServicePipeline:
         return "AVANCADO", 12, "Máximo seguro"
 
     def processar(self, user, tax_regime):
-        perfil, n_meses, rec_padrao = self._identificar_perfil_e_periodo(user)
+        perfil, n_meses, rec_padrao = self._identificar_perfil_e_periodo()
         data_limite = timezone.localdate() - timedelta(days=n_meses * 30)
-        
-        base_tx = self.queryset.filter(
-            account__firm__members__user=user,
-            date__gte=data_limite
-        )
+
+        base_tx = self.queryset.filter(date__gte=data_limite)
 
         receitas_tx = base_tx.filter(transaction_type="INFLOW")
         if perfil in ["INICIANTE", "INTERMEDIARIO"]:

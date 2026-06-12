@@ -38,10 +38,9 @@ class FirmViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def members(self, request, pk=None):
-        members = FirmMember.objects.filter(
-            firm_id=pk,
-            firm__members__user=request.user
-        )
+        if not FirmMember.objects.filter(firm_id=pk, user=request.user).exists():
+            return Response([], status=status.HTTP_200_OK)
+        members = FirmMember.objects.filter(firm_id=pk)
         serializer = FirmMemberSerializer(members, many=True)
         return Response(serializer.data)
 

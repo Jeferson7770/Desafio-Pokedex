@@ -1,3 +1,4 @@
+import datetime
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -26,30 +27,27 @@ class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
             try:
                 int(year)
             except ValueError:
-                track_event(
-                    user=user,
-                    event_name="honorarios_filtro_erro",
-                    properties={"year_tentado": year, "motivo": "ano_invalido"}
-                )
                 raise ValidationError("O parâmetro 'year' deve ser um número inteiro válido.")
 
         if month:
             try:
                 int(month)
             except ValueError:
-                track_event(
-                    user=user,
-                    event_name="honorarios_filtro_erro",
-                    properties={"month_tentado": month, "motivo": "mes_invalido"}
-                )
                 raise ValidationError("O parâmetro 'month' deve ser um número inteiro válido.")
 
-        if year or month:
+        if year and month:
+            year_int, month_int = int(year), int(month)
+            start = datetime.date(year_int, month_int, 1)
+            end = datetime.date(year_int, month_int + 1, 1) if month_int < 12 else datetime.date(year_int + 1, 1, 1)
             queryset = queryset.filter(
-                **{
-                    **({"installments__due_date__year": int(year)} if year else {}),
-                    **({"installments__due_date__month": int(month)} if month else {}),
-                }
+                installments__due_date__gte=start,
+                installments__due_date__lt=end,
+            ).distinct()
+        elif year:
+            year_int = int(year)
+            queryset = queryset.filter(
+                installments__due_date__gte=datetime.date(year_int, 1, 1),
+                installments__due_date__lt=datetime.date(year_int + 1, 1, 1),
             ).distinct()
 
         return queryset.prefetch_related("installments")

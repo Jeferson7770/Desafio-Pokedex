@@ -342,21 +342,24 @@ class TransactionViewSet(FirmMixin, viewsets.ModelViewSet):
 
         saldo_bancario_total = BankAccount.objects.filter(firm_id=firm_id).aggregate(total=Sum('current_balance'))['total'] or Decimal('0.00')
 
+        start_of_month = datetime.date(hoje.year, hoje.month, 1)
+        end_of_month = datetime.date(hoje.year, hoje.month + 1, 1) if hoje.month < 12 else datetime.date(hoje.year + 1, 1, 1)
+
         honorarios_recebidos_mes = Honorario.objects.filter(
             firm_id=firm_id,
             status=Honorario.Status.RECEBIDO,
-            date__year=hoje.year,
-            date__month=hoje.month
+            date__gte=start_of_month,
+            date__lt=end_of_month,
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        
+
         disponibilidade_financeira = saldo_bancario_total + honorarios_recebidos_mes
-        
+
         saidas_mes = queryset.filter(
             transaction_type=Transaction.TransactionType.OUTFLOW,
-            date__year=hoje.year,
-            date__month=hoje.month
-        ).order_by("-amount")[:5]
-        
+            date__gte=start_of_month,
+            date__lt=end_of_month,
+        ).select_related("account").order_by("-amount")[:5]
+
         top_transactions_serializer = self.get_serializer(saidas_mes, many=True)
         
         track_event(
