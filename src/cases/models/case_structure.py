@@ -17,6 +17,7 @@ class Client(models.Model):
 
     class Meta:
         ordering = ["name"]
+        indexes = [models.Index(fields=["firm_id", "name"], name="client_firm_name_idx")]
 
     def __str__(self):
         return self.name
