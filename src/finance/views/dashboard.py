@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from django.db.models import Sum, Q
+from django.db.models import Sum, Case, When, DecimalField
 from django.utils import timezone
 import datetime
 
@@ -37,44 +37,37 @@ class FinanceDashboardSummaryView(FirmMixin, APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        entradas_honorarios = ParcelaHonorario.objects.filter(
+        start_date = datetime.date(year, month, 1)
+        end_date = datetime.date(year, month + 1, 1) if month < 12 else datetime.date(year + 1, 1, 1)
+
+        # 1 query each instead of 2 — conditional SUM per status
+        honorarios_agg = ParcelaHonorario.objects.filter(
             honorario__firm_id=firm_id,
-            due_date__year=year,
-            due_date__month=month,
-            status="RECEBIDO"
-        ).aggregate(total=Sum("amount"))["total"] or 0.0
+            due_date__gte=start_date,
+            due_date__lt=end_date,
+        ).aggregate(
+            recebido=Sum(Case(When(status="RECEBIDO", then="amount"), output_field=DecimalField())),
+            pendente=Sum(Case(When(status="PENDENTE", then="amount"), output_field=DecimalField())),
+        )
 
-        entradas_outras = OutraEntradaInstallment.objects.filter(
+        outras_agg = OutraEntradaInstallment.objects.filter(
             outra_entrada__firm_id=firm_id,
-            due_date__year=year,
-            due_date__month=month,
-            status="RECEBIDO"
-        ).aggregate(total=Sum("amount"))["total"] or 0.0
+            due_date__gte=start_date,
+            due_date__lt=end_date,
+        ).aggregate(
+            recebido=Sum(Case(When(status="RECEBIDO", then="amount"), output_field=DecimalField())),
+            pendente=Sum(Case(When(status="PENDENTE", then="amount"), output_field=DecimalField())),
+        )
 
-        entradas_mes = float(entradas_honorarios) + float(entradas_outras)
-
-        a_receber_honorarios = ParcelaHonorario.objects.filter(
-            honorario__firm_id=firm_id,
-            due_date__year=year,
-            due_date__month=month,
-            status="PENDENTE"
-        ).aggregate(total=Sum("amount"))["total"] or 0.0
-
-        a_receber_outras = OutraEntradaInstallment.objects.filter(
-            outra_entrada__firm_id=firm_id,
-            due_date__year=year,
-            due_date__month=month,
-            status="PENDENTE"
-        ).aggregate(total=Sum("amount"))["total"] or 0.0
-
-        a_receber = float(a_receber_honorarios) + float(a_receber_outras)
+        entradas_mes = float(honorarios_agg["recebido"] or 0) + float(outras_agg["recebido"] or 0)
+        a_receber = float(honorarios_agg["pendente"] or 0) + float(outras_agg["pendente"] or 0)
 
         saidas_mes = ParcelaDespesa.objects.filter(
             expense__firm_id=firm_id,
             expense__is_active=True,
-            due_date__year=year,
-            due_date__month=month,
-            is_paid=True
+            due_date__gte=start_date,
+            due_date__lt=end_date,
+            is_paid=True,
         ).aggregate(total=Sum("amount"))["total"] or 0.0
 
         saldo_liquido = entradas_mes - float(saidas_mes)

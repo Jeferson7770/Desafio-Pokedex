@@ -44,6 +44,9 @@ class ParcelaHonorario(models.Model):
 
     class Meta:
         ordering = ["installment_number"]
+        indexes = [
+            models.Index(fields=["due_date", "status"], name="parc_hon_due_status_idx"),
+        ]
 
     @property
     def late_interest_cost(self) -> Decimal:

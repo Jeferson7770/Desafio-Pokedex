@@ -20,8 +20,11 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            return Expense.objects.none()
         queryset = Expense.objects.filter(
-            firm__members__user=self.request.user,
+            firm_id=firm_id,
             is_active=True
         ).prefetch_related('installments__deferrals')
 
@@ -94,8 +97,8 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
     def defer_installment(self, request, installment_pk=None):
         try:
             installment = ParcelaDespesa.objects.get(
-                pk=installment_pk, 
-                expense__firm__members__user=request.user
+                pk=installment_pk,
+                expense__firm_id=self._get_firm_id(),
             )
         except ParcelaDespesa.DoesNotExist:
             track_event(

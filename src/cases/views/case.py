@@ -15,9 +15,10 @@ class ClientViewSet(BaseFirmScopedViewSet):
     serializer_class = ClientSerializer
 
     def get_queryset(self):
-        return Client.objects.filter(
-            firm__members__user=self.request.user,
-        ).order_by("name")
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            return Client.objects.none()
+        return Client.objects.filter(firm_id=firm_id).order_by("name")
 
     def perform_create(self, serializer):
         firm_id = self._get_firm_id()
@@ -43,9 +44,10 @@ class ProcessViewSet(BaseFirmScopedViewSet):
     serializer_class = ProcessSerializer
 
     def get_queryset(self):
-        return Process.objects.filter(
-            firm__members__user=self.request.user,
-        ).select_related("client")
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            return Process.objects.none()
+        return Process.objects.filter(firm_id=firm_id).select_related("client")
 
     def perform_create(self, serializer):
         firm_id = self._get_firm_id()

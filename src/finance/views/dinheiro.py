@@ -25,7 +25,10 @@ class BankAccountViewSet(FirmMixin, viewsets.ModelViewSet):
     serializer_class = BankAccountSerializer
 
     def get_queryset(self):
-        return BankAccount.objects.filter(firm__members__user=self.request.user)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            return BankAccount.objects.none()
+        return BankAccount.objects.filter(firm_id=firm_id)
 
     def _get_firm_id_or_raise(self):
         firm_id = self._get_firm_id()
@@ -271,7 +274,10 @@ class TransactionViewSet(FirmMixin, viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
 
     def get_queryset(self):
-        return Transaction.objects.filter(account__firm__members__user=self.request.user)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            return Transaction.objects.none()
+        return Transaction.objects.filter(account__firm_id=firm_id)
 
     def _get_firm_id_or_raise(self):
         firm_id = self._get_firm_id()

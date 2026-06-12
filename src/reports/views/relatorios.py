@@ -15,7 +15,10 @@ class FinancialReportViewSet(FirmMixin, viewsets.ModelViewSet):
     serializer_class = FinancialReportDashboardSerializer
 
     def get_queryset(self):
-        return self.queryset.filter(firm__members__user=self.request.user)
+        firm_id = self._get_firm_id()
+        if not firm_id:
+            return self.queryset.none()
+        return self.queryset.filter(firm_id=firm_id)
 
     def list(self, request, *args, **kwargs):
         """

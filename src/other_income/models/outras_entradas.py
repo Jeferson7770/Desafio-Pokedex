@@ -41,3 +41,6 @@ class OutraEntradaInstallment(models.Model):
 
     class Meta:
         ordering = ["installment_number"]
+        indexes = [
+            models.Index(fields=["due_date", "status"], name="outra_ent_due_status_idx"),
+        ]

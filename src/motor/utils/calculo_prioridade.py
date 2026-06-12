@@ -24,11 +24,13 @@ class MotorPrioridadeEngine:
         return result["total"] or Decimal("0.00")
 
     def _obter_parcelas_ordenadas_padrao(self, ano, mes):
+        start = datetime.date(ano, mes, 1)
+        end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
         parcelas = ParcelaDespesa.objects.filter(
             expense__firm=self.firm,
             is_paid=False,
-            due_date__year=ano,
-            due_date__month=mes,
+            due_date__gte=start,
+            due_date__lt=end,
             expense__is_active=True
         ).select_related("expense")
 

@@ -70,6 +70,9 @@ class ParcelaDespesa(models.Model):
 
     class Meta:
         ordering = ["installment_number"]
+        indexes = [
+            models.Index(fields=["due_date", "is_paid"], name="parcela_due_paid_idx"),
+        ]
 
     @property
     def status(self):
