@@ -4,6 +4,7 @@ from django.db.models import Prefetch, Sum
 import datetime
 from ...finance.models.dinheiro import BankAccount
 from ...expenses.models.expenses import ParcelaDespesa
+from ...other_income.models.outras_entradas import OutraEntradaInstallment
 from ..models.motor import SimulacaoPrioridade, ItemSimulacaoPrioridade
 
 
@@ -22,6 +23,50 @@ class MotorPrioridadeEngine:
     def obter_saldo_consolidado(self):
         result = BankAccount.objects.filter(firm=self.firm).aggregate(total=Sum("current_balance"))
         return result["total"] or Decimal("0.00")
+
+    def _obter_outras_entradas_pendentes(self, start, end):
+        return list(
+            OutraEntradaInstallment.objects.filter(
+                outra_entrada__firm=self.firm,
+                status=OutraEntradaInstallment.Status.PENDENTE,
+                due_date__gte=start,
+                due_date__lt=end,
+            ).select_related("outra_entrada")
+        )
+
+    @staticmethod
+    def _item_de_parcela(parcela, status_recomendacao=None):
+        data = {
+            "tipo": "despesa",
+            "parcela": parcela.id,
+            "outra_entrada_installment_id": None,
+            "expense_title": parcela.expense.title,
+            "category": parcela.expense.category,
+            "priority": parcela.expense.priority,
+            "due_date": parcela.due_date.strftime("%Y-%m-%d"),
+            "amount_snapshot": float(parcela.amount),
+            "late_interest_snapshot": float(parcela.late_interest_cost),
+        }
+        if status_recomendacao:
+            data["status_recomendacao"] = status_recomendacao
+        return data
+
+    @staticmethod
+    def _item_de_outra_entrada(inst, status_recomendacao=None):
+        data = {
+            "tipo": "outra_entrada",
+            "parcela": None,
+            "outra_entrada_installment_id": inst.id,
+            "expense_title": inst.outra_entrada.title,
+            "category": "OUTRAS_ENTRADAS",
+            "priority": "OPERACIONAL",
+            "due_date": inst.due_date.strftime("%Y-%m-%d"),
+            "amount_snapshot": float(inst.amount),
+            "late_interest_snapshot": float(inst.late_interest_cost),
+        }
+        if status_recomendacao:
+            data["status_recomendacao"] = status_recomendacao
+        return data
 
     def _obter_parcelas_ordenadas_padrao(self, ano, mes):
         start = datetime.date(ano, mes, 1)
@@ -67,6 +112,9 @@ class MotorPrioridadeEngine:
             .first()
         )
 
+        start = datetime.date(ano, mes, 1)
+        end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
+
         if simulacao_salva:
             recomendados = []
             nao_cobertos = []
@@ -74,23 +122,16 @@ class MotorPrioridadeEngine:
 
             for item in simulacao_salva.items.all():
                 parcelas_na_simulacao.add(item.parcela_id)
-                item_data = {
-                    "parcela": item.parcela.id,
-                    "expense_title": item.parcela.expense.title,
-                    "category": item.parcela.expense.category,
-                    "priority": item.parcela.expense.priority,
-                    "due_date": item.parcela.due_date.strftime("%Y-%m-%d"),
-                    "amount_snapshot": float(item.amount_snapshot),
-                    "late_interest_snapshot": float(item.late_interest_snapshot),
-                    "status_recomendacao": item.status_recomendacao,
-                }
+                item_data = self._item_de_parcela(item.parcela, item.status_recomendacao)
+                item_data["amount_snapshot"] = float(item.amount_snapshot)
+                item_data["late_interest_snapshot"] = float(item.late_interest_snapshot)
                 if item.status_recomendacao == "RECOMENDADO":
                     recomendados.append(item_data)
                 else:
                     nao_cobertos.append(item_data)
 
-            start = datetime.date(ano, mes, 1)
-            end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
+            saldo_restante = Decimal(str(simulacao_salva.saldo_restante_pos_pagamentos))
+
             novas_parcelas = ParcelaDespesa.objects.filter(
                 expense__firm=self.firm,
                 is_paid=False,
@@ -99,24 +140,19 @@ class MotorPrioridadeEngine:
                 expense__is_active=True,
             ).exclude(id__in=parcelas_na_simulacao).select_related("expense")
 
-            saldo_restante = Decimal(str(simulacao_salva.saldo_restante_pos_pagamentos))
             for parcela in sorted(novas_parcelas, key=lambda p: p.due_date):
-                item_data = {
-                    "parcela": parcela.id,
-                    "expense_title": parcela.expense.title,
-                    "category": parcela.expense.category,
-                    "priority": parcela.expense.priority,
-                    "due_date": parcela.due_date.strftime("%Y-%m-%d"),
-                    "amount_snapshot": float(parcela.amount),
-                    "late_interest_snapshot": float(parcela.late_interest_cost),
-                }
                 if saldo_restante >= parcela.amount:
-                    item_data["status_recomendacao"] = "RECOMENDADO"
                     saldo_restante -= parcela.amount
-                    recomendados.append(item_data)
+                    recomendados.append(self._item_de_parcela(parcela, "RECOMENDADO"))
                 else:
-                    item_data["status_recomendacao"] = "NAO_COBERTO"
-                    nao_cobertos.append(item_data)
+                    nao_cobertos.append(self._item_de_parcela(parcela, "NAO_COBERTO"))
+
+            for inst in sorted(self._obter_outras_entradas_pendentes(start, end), key=lambda i: i.due_date):
+                if saldo_restante >= inst.amount:
+                    saldo_restante -= inst.amount
+                    recomendados.append(self._item_de_outra_entrada(inst, "RECOMENDADO"))
+                else:
+                    nao_cobertos.append(self._item_de_outra_entrada(inst, "NAO_COBERTO"))
 
             return {
                 "id": simulacao_salva.id,
@@ -129,29 +165,25 @@ class MotorPrioridadeEngine:
 
         saldo_disponivel = self.obter_saldo_consolidado()
         parcelas_ordenadas = self._obter_parcelas_ordenadas_padrao(ano, mes)
+        outras_pendentes = self._obter_outras_entradas_pendentes(start, end)
         saldo_restante = saldo_disponivel
 
         recomendados = []
         nao_cobertos = []
 
         for parcela in parcelas_ordenadas:
-            item_data = {
-                "parcela": parcela.id,
-                "expense_title": parcela.expense.title,
-                "category": parcela.expense.category,
-                "priority": parcela.expense.priority,
-                "due_date": parcela.due_date.strftime("%Y-%m-%d"),
-                "amount_snapshot": float(parcela.amount),
-                "late_interest_snapshot": float(parcela.late_interest_cost),
-            }
-
             if saldo_restante >= parcela.amount:
-                item_data["status_recomendacao"] = "RECOMENDADO"
                 saldo_restante -= parcela.amount
-                recomendados.append(item_data)
+                recomendados.append(self._item_de_parcela(parcela, "RECOMENDADO"))
             else:
-                item_data["status_recomendacao"] = "NAO_COBERTO"
-                nao_cobertos.append(item_data)
+                nao_cobertos.append(self._item_de_parcela(parcela, "NAO_COBERTO"))
+
+        for inst in sorted(outras_pendentes, key=lambda i: i.due_date):
+            if saldo_restante >= inst.amount:
+                saldo_restante -= inst.amount
+                recomendados.append(self._item_de_outra_entrada(inst, "RECOMENDADO"))
+            else:
+                nao_cobertos.append(self._item_de_outra_entrada(inst, "NAO_COBERTO"))
 
         return {
             "id": None,
