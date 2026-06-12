@@ -156,6 +156,9 @@ class FinancialReportViewSet(FirmMixin, viewsets.ModelViewSet):
             float(p.amount) for p in parcelas_pagas if p.expense.category in _PAYROLL_CATS
         )
         team_size = FirmMember.objects.filter(firm_id=firm_id).count()
+        has_uncategorized = any(
+            p.expense.category == Expense.Category.A_CLASSIFICAR for p in parcelas_pagas
+        )
 
         net_result    = total_revenue - total_expense
         profit_margin = pct(net_result, total_revenue)
@@ -167,15 +170,16 @@ class FinancialReportViewSet(FirmMixin, viewsets.ModelViewSet):
             "total_expense": total_expense,
             "net_result": net_result,
             "profit_margin": profit_margin,
+            "is_fully_categorized": not has_uncategorized,
             "expense_composition": {
-                "fixed":    pct(fixed,    total_expense),
-                "variable": pct(variable, total_expense),
-                "eventual": pct(eventual, total_expense),
+                "fixed":    {"value": round(fixed, 2),    "percentage": pct(fixed,    total_expense)},
+                "variable": {"value": round(variable, 2), "percentage": pct(variable, total_expense)},
+                "eventual": {"value": round(eventual, 2), "percentage": pct(eventual, total_expense)},
             },
             "expense_categories": {
-                "payroll":   pct(payroll,   total_expense),
-                "taxes":     pct(taxes,     total_expense),
-                "structure": pct(structure, total_expense),
+                "payroll":   {"value": round(payroll, 2),   "percentage": pct(payroll,   total_expense)},
+                "taxes":     {"value": round(taxes, 2),     "percentage": pct(taxes,     total_expense)},
+                "structure": {"value": round(structure, 2), "percentage": pct(structure, total_expense)},
             },
             "late_interest_total": round(late_interest_total, 2),
             "seasonality": {
@@ -190,10 +194,10 @@ class FinancialReportViewSet(FirmMixin, viewsets.ModelViewSet):
                 "value":      partner_value,
             },
             "payroll_summary": {
-                "total_payroll":                  payroll_total_period,
-                "monthly_average":                round(payroll_total_period, 2),
-                "team_size":                      team_size,
-                "revenue_commitment_percentage":  pct(payroll_total_period, total_revenue),
+                "total_payroll":                 round(payroll_total_period, 2),
+                "monthly_average":               round(payroll_total_period, 2),
+                "team_size":                     team_size,
+                "revenue_commitment_percentage": pct(payroll_total_period, total_revenue),
             },
         }
 
