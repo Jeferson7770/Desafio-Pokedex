@@ -46,7 +46,6 @@ class FinanceDashboardSummaryView(FirmMixin, APIView):
         start_date = datetime.date(year, month, 1)
         end_date = datetime.date(year, month + 1, 1) if month < 12 else datetime.date(year + 1, 1, 1)
 
-        # 1 query each instead of 2 — conditional SUM per status
         honorarios_agg = ParcelaHonorario.objects.filter(
             honorario__firm_id=firm_id,
             due_date__gte=start_date,
@@ -82,6 +81,35 @@ class FinanceDashboardSummaryView(FirmMixin, APIView):
             firm_id=firm_id
         ).aggregate(total=Sum("current_balance"))["total"] or 0.0
 
+        trinta = hoje - datetime.timedelta(days=30)
+        sessenta = hoje - datetime.timedelta(days=60)
+        noventa = hoje - datetime.timedelta(days=90)
+
+        _aging_filter = dict(status="PENDENTE", due_date__lt=hoje)
+        _aging_cases = dict(
+            total=Sum("amount"),
+            ate_30=Sum(Case(When(due_date__gte=trinta, then="amount"), output_field=DecimalField())),
+            de_31_60=Sum(Case(When(due_date__gte=sessenta, due_date__lt=trinta, then="amount"), output_field=DecimalField())),
+            de_61_90=Sum(Case(When(due_date__gte=noventa, due_date__lt=sessenta, then="amount"), output_field=DecimalField())),
+            acima_90=Sum(Case(When(due_date__lt=noventa, then="amount"), output_field=DecimalField())),
+        )
+
+        atraso_hon = ParcelaHonorario.objects.filter(
+            honorario__firm_id=firm_id, **_aging_filter
+        ).aggregate(**_aging_cases)
+
+        atraso_outras = OutraEntradaInstallment.objects.filter(
+            outra_entrada__firm_id=firm_id, **_aging_filter
+        ).aggregate(**_aging_cases)
+
+        em_atraso = float(atraso_hon["total"] or 0) + float(atraso_outras["total"] or 0)
+        aging = {
+            "ate_30_dias": float((atraso_hon["ate_30"] or 0) + (atraso_outras["ate_30"] or 0)),
+            "de_31_a_60_dias": float((atraso_hon["de_31_60"] or 0) + (atraso_outras["de_31_60"] or 0)),
+            "de_61_a_90_dias": float((atraso_hon["de_61_90"] or 0) + (atraso_outras["de_61_90"] or 0)),
+            "acima_de_90_dias": float((atraso_hon["acima_90"] or 0) + (atraso_outras["acima_90"] or 0)),
+        }
+
         track_event(
             user=user,
             event_name="dashboard_financeiro_visualizado",
@@ -96,6 +124,8 @@ class FinanceDashboardSummaryView(FirmMixin, APIView):
             "saidas_do_mes": float(saidas_mes),
             "saldo_liquido": float(saldo_liquido),
             "saldo_em_conta": float(saldo_em_conta),
+            "em_atraso": em_atraso,
+            "aging_inadimplencia": aging,
         }
         cache.set(cache_key, result, timeout=300)
         return Response(result, status=status.HTTP_200_OK)
