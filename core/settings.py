@@ -106,6 +106,29 @@ DATABASES = {
 }
 DATABASES["default"]["CONN_MAX_AGE"] = 60
 
+REDIS_URL = config("REDIS_URL", default=None)
+
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                "SOCKET_CONNECT_TIMEOUT": 2,
+                "SOCKET_TIMEOUT": 2,
+                "IGNORE_EXCEPTIONS": True,
+            },
+            "TIMEOUT": 300,  # 5 minutes default
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+
 POSTHOG_API_KEY = config("POSTHOG_API_KEY", default=None)
 ABACATEPAY_WEBHOOK_SECRET = config("ABACATEPAY_WEBHOOK_SECRET", default="")
 

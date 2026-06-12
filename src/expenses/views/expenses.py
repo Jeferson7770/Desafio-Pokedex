@@ -5,6 +5,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 from django.db.models import Sum
 from django.db.models.functions import ExtractYear, ExtractMonth
+from django.core.cache import cache
 import datetime
 
 from ..models.expenses import Expense, ParcelaDespesa
@@ -13,6 +14,7 @@ from ...finance.models.dinheiro import BankAccount
 from ..serializers.expenses import ExpenseSerializer, ExpenseDeferralSerializer
 from ...users.utils.telemetry import track_event
 from ...users.utils.firm_mixin import FirmMixin
+from ...users.utils.cache_utils import invalidar_cache_financeiro
 
 
 class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
@@ -92,6 +94,7 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
         if not firm_id:
             raise ValidationError("O usuário não possui nenhuma empresa vinculada.")
         serializer.save(firm_id=firm_id)
+        invalidar_cache_financeiro(firm_id)
 
     @action(detail=False, methods=["post"], url_path="defer-installment/(?P<installment_pk>[^/.]+)")
     def defer_installment(self, request, installment_pk=None):
@@ -121,11 +124,12 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
         )
 
         installment.due_date = new_date
-        
+
         if penalty_amount:
             installment.amount += penalty_amount
-            
+
         installment.save()
+        invalidar_cache_financeiro(self._get_firm_id())
 
         track_event(
             user=request.user,
@@ -147,6 +151,11 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
         if not firm_id:
             raise ValidationError("O usuário não possui nenhuma empresa vinculada.")
         today = timezone.localdate()
+
+        cache_key = f"yearly_summary:{firm_id}:{today.year}:{today.month}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached, status=status.HTTP_200_OK)
         
         try:
             start_date = today.replace(year=today.year - 1)
@@ -229,15 +238,16 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
 
         response_payload = {
             "summary": sorted_summary,
-            "total_bank_balance": float(saldo_em_conta)
+            "total_bank_balance": float(saldo_em_conta),
         }
+        cache.set(cache_key, response_payload, timeout=300)
 
         track_event(
             user=request.user,
             event_name="visualizou_resumo_despesas_anual",
             properties={
                 "meses_com_dados_count": len(sorted_summary),
-                "total_bank_balance": float(saldo_em_conta)
+                "total_bank_balance": float(saldo_em_conta),
             }
         )
 

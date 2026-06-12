@@ -6,8 +6,10 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404
 from ..models.honorarios import Honorario, ParcelaHonorario
 from ..serializers.honorarios import HonorarioSerializer, ParcelaHonorarioSerializer
+from django.core.cache import cache
 from ...users.utils.telemetry import track_event
 from ...users.utils.firm_mixin import FirmMixin
+from ...users.utils.cache_utils import invalidar_cache_financeiro
 
 
 class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
@@ -53,8 +55,18 @@ class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
         return queryset.prefetch_related("installments")
 
     def list(self, request, *args, **kwargs):
+        firm_id = self._get_firm_id()
+        year = request.query_params.get("year", "all")
+        month = request.query_params.get("month", "all")
+        cache_key = f"honorarios:{firm_id}:{year}:{month}"
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached, status=status.HTTP_200_OK)
+
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
+        cache.set(cache_key, serializer.data, timeout=300)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
@@ -85,15 +97,17 @@ class HonorarioViewSet(FirmMixin, viewsets.ModelViewSet):
         if not firm_id:
             raise ValidationError("O usuário não está vinculado a nenhuma empresa (firm).")
         serializer.save(firm_id=firm_id)
+        invalidar_cache_financeiro(firm_id)
 
     @action(detail=True, methods=["patch"], url_path=r"installments/(?P<installment_pk>[^/.]+)")
     def update_installment(self, request, pk=None, installment_pk=None):
         honorario = self.get_object()
         parcela = get_object_or_404(ParcelaHonorario, honorario=honorario, id=installment_pk)
-        
+
         serializer = ParcelaHonorarioSerializer(parcela, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated_installment = serializer.save()
+        invalidar_cache_financeiro(self._get_firm_id())
 
         track_event(
             user=request.user,

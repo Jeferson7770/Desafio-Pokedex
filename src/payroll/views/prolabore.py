@@ -17,8 +17,10 @@ from ..serializers.prolabore import (
 from ...finance.models.dinheiro import Transaction
 from ...expenses.models.expenses import Expense, ParcelaDespesa
 from ..utils.calculo import calcular_pro_labore_escritorio
+from django.core.cache import cache
 from ...users.utils.telemetry import track_event
 from ...users.utils.firm_mixin import FirmMixin
+from ...users.utils.cache_utils import invalidar_cache_prolabore
 
 
 class ProLaboreViewSet(FirmMixin, viewsets.ModelViewSet):
@@ -140,7 +142,14 @@ class ProLaboreViewSet(FirmMixin, viewsets.ModelViewSet):
         }
 
     def list(self, request, *args, **kwargs):
+        months = request.query_params.get("months", 12)
+        cache_key = f"prolabore_history:{request.user.id}:{months}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached["monthly_history"], status=status.HTTP_200_OK)
+
         payload = self._build_history_payload(request)
+        cache.set(cache_key, payload, timeout=600)
         return Response(payload["monthly_history"], status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
@@ -183,6 +192,7 @@ class ProLaboreViewSet(FirmMixin, viewsets.ModelViewSet):
                 pro_labore_sugerido=calculos_objeto["maximo_seguro"]["pro_labore_bruto"],
                 custo_total_escritorio=calculos_objeto["maximo_seguro"]["custo_total_escritorio"]
             )
+        invalidar_cache_prolabore(user.id)
 
         track_event(
             user=user,
@@ -201,5 +211,12 @@ class ProLaboreViewSet(FirmMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="history")
     def history(self, request):
+        months = request.query_params.get("months", 12)
+        cache_key = f"prolabore_history:{request.user.id}:{months}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached, status=status.HTTP_200_OK)
+
         payload = self._build_history_payload(request)
+        cache.set(cache_key, payload, timeout=600)
         return Response(payload, status=status.HTTP_200_OK)

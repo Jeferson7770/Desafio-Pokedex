@@ -16,8 +16,10 @@ from ..models.dinheiro import BankAccount, Transaction
 from ...fees.models.honorarios import Honorario
 from ..serializers.dinheiro import BankAccountSerializer, TransactionSerializer
 from ..services.pluggy import PluggyService  
+from django.core.cache import cache
 from ...users.utils.telemetry import track_event
 from ...users.utils.firm_mixin import FirmMixin
+from ...users.utils.cache_utils import invalidar_cache_financeiro
 
 
 class BankAccountViewSet(FirmMixin, viewsets.ModelViewSet):
@@ -289,14 +291,15 @@ class TransactionViewSet(FirmMixin, viewsets.ModelViewSet):
         with db_transaction.atomic():
             instance = serializer.save()
             account = instance.account
-            
+
             if instance.transaction_type == Transaction.TransactionType.INFLOW:
                 account.current_balance += instance.amount
             else:
                 account.current_balance -= instance.amount
             account.save()
 
-            track_event(
+        invalidar_cache_financeiro(self._get_firm_id())
+        track_event(
                 user=self.request.user,
                 event_name="transacao_manual_criada",
                 properties={
@@ -321,20 +324,26 @@ class TransactionViewSet(FirmMixin, viewsets.ModelViewSet):
             
             instance.delete()
 
-            track_event(
-                user=self.request.user,
-                event_name="transacao_manual_removida",
-                properties={
-                    "transaction_id": transaction_id,
-                    "account_id": account.id,
-                    "transaction_type": transaction_type
-                }
-            )
+        invalidar_cache_financeiro(self._get_firm_id())
+        track_event(
+            user=self.request.user,
+            event_name="transacao_manual_removida",
+            properties={
+                "transaction_id": transaction_id,
+                "account_id": account.id,
+                "transaction_type": transaction_type,
+            }
+        )
 
     @action(detail=False, methods=["get"], url_path="cash-flow-summary")
     def cash_flow_summary(self, request):
         firm_id = self._get_firm_id_or_raise()
         hoje = datetime.date.today()
+        cache_key = f"cash_flow_summary:{firm_id}:{hoje.year}:{hoje.month}"
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached, status=status.HTTP_200_OK)
 
         queryset = self.get_queryset()
         inflows = queryset.filter(transaction_type=Transaction.TransactionType.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
@@ -371,12 +380,14 @@ class TransactionViewSet(FirmMixin, viewsets.ModelViewSet):
             }
         )
         
-        return Response({
+        result = {
             "total_inflows": float(inflows),
             "total_outflows": float(outflows),
             "net_cash_flow": float(inflows - outflows),
             "total_bank_balance": float(saldo_bancario_total),
             "received_fees_current_month": float(honorarios_recebidos_mes),
             "total_financial_availability": float(disponibilidade_financeira),
-            "top_five_transactions_current_month": top_transactions_serializer.data
-        }, status=status.HTTP_200_OK)
+            "top_five_transactions_current_month": top_transactions_serializer.data,
+        }
+        cache.set(cache_key, result, timeout=300)
+        return Response(result, status=status.HTTP_200_OK)

@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from django.utils import timezone
+from django.core.cache import cache
 from ..models.relatorios import FinancialReportSummary
 from ..serializers.relatorios import FinancialReportDashboardSerializer
 from ...users.utils.telemetry import track_event
@@ -43,6 +44,11 @@ class FinancialReportViewSet(FirmMixin, viewsets.ModelViewSet):
             )
             raise ValidationError({"detail": "Os parâmetros 'year' e 'month' devem ser inteiros válidos."})
 
+        cache_key = f"financial_report:{firm_id}:{year}:{month}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached, status=status.HTTP_200_OK)
+
         try:
             report_instance = self.get_queryset().get(firm_id=firm_id, year=year, month=month)
             dados_existiam = True
@@ -57,6 +63,7 @@ class FinancialReportViewSet(FirmMixin, viewsets.ModelViewSet):
             dados_existiam = False
 
         serializer = self.get_serializer(report_instance)
+        cache.set(cache_key, serializer.data, timeout=300)
 
         track_event(
             user=request.user,
@@ -92,8 +99,9 @@ class FinancialReportViewSet(FirmMixin, viewsets.ModelViewSet):
             firm_id=firm_id,
             year=year,
             month=month,
-            defaults=serializer.validated_data
+            defaults=serializer.validated_data,
         )
+        cache.delete(f"financial_report:{firm_id}:{year}:{month}")
 
         track_event(
             user=user,

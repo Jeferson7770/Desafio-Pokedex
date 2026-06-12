@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django.db.models import Sum, Case, When, DecimalField
 from django.utils import timezone
+from django.core.cache import cache
 import datetime
 
 from ...fees.models.honorarios import ParcelaHonorario
@@ -36,6 +37,11 @@ class FinanceDashboardSummaryView(FirmMixin, APIView):
                 {"detail": "Parâmetros 'year' e 'month' precisam ser inteiros válidos."},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        cache_key = f"dashboard:{firm_id}:{year}:{month}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached, status=status.HTTP_200_OK)
 
         start_date = datetime.date(year, month, 1)
         end_date = datetime.date(year, month + 1, 1) if month < 12 else datetime.date(year + 1, 1, 1)
@@ -82,12 +88,14 @@ class FinanceDashboardSummaryView(FirmMixin, APIView):
             properties={"ano": year, "mes": month},
         )
 
-        return Response({
+        result = {
             "ano_referencia": year,
             "mes_referencia": month,
             "entradas_do_mes": float(entradas_mes),
             "a_receber": float(a_receber),
             "saidas_do_mes": float(saidas_mes),
             "saldo_liquido": float(saldo_liquido),
-            "saldo_em_conta": float(saldo_em_conta)
-        }, status=status.HTTP_200_OK)
+            "saldo_em_conta": float(saldo_em_conta),
+        }
+        cache.set(cache_key, result, timeout=300)
+        return Response(result, status=status.HTTP_200_OK)

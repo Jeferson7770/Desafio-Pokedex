@@ -7,8 +7,10 @@ from django.shortcuts import get_object_or_404
 
 from ..models.outras_entradas import OutraEntrada, OutraEntradaInstallment
 from ..serializers.outras_entradas import OutraEntradaSerializer, OutraEntradaInstallmentSerializer
+from django.core.cache import cache
 from ...users.utils.telemetry import track_event
 from ...users.utils.firm_mixin import FirmMixin
+from ...users.utils.cache_utils import invalidar_cache_financeiro
 
 
 class OutraEntradaViewSet(FirmMixin, viewsets.ModelViewSet):
@@ -60,8 +62,20 @@ class OutraEntradaViewSet(FirmMixin, viewsets.ModelViewSet):
         return queryset.filter(date__range=[start_date, end_date])
 
     def list(self, request, *args, **kwargs):
+        firm_id = self._get_firm_id()
+        year = request.query_params.get("year", "")
+        month = request.query_params.get("month", "")
+        start = request.query_params.get("start_date", "")
+        end = request.query_params.get("end_date", "")
+        cache_key = f"outras_entradas:{firm_id}:{year}:{month}:{start}:{end}"
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached, status=status.HTTP_200_OK)
+
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
+        cache.set(cache_key, serializer.data, timeout=300)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def perform_create(self, serializer):
@@ -72,6 +86,7 @@ class OutraEntradaViewSet(FirmMixin, viewsets.ModelViewSet):
         if not firm_id:
             raise PermissionDenied("Autenticação necessária.")
         instance = serializer.save(firm_id=firm_id)
+        invalidar_cache_financeiro(firm_id)
         track_event(
             user=self.request.user,
             event_name="outra_entrada_criada_sucesso",
@@ -109,6 +124,7 @@ class OutraEntradaViewSet(FirmMixin, viewsets.ModelViewSet):
         else:
             outra_entrada.status = OutraEntrada.Status.PENDENTE
         outra_entrada.save(update_fields=["status"])
+        invalidar_cache_financeiro(self._get_firm_id())
 
         track_event(
             user=self.request.user,

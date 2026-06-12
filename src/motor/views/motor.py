@@ -7,8 +7,10 @@ from django.utils import timezone
 from ..models.motor import SimulacaoPrioridade
 from ..serializers.motor import SimulacaoPrioridadeSerializer
 from ..utils.calculo_prioridade import MotorPrioridadeEngine
+from django.core.cache import cache
 from ...users.utils.telemetry import track_event
 from ...users.utils.firm_mixin import FirmMixin
+from ...users.utils.cache_utils import invalidar_cache_motor
 from ...firms.models.firm_structure import Firm
 
 
@@ -24,12 +26,19 @@ class MotorPrioridadeViewSet(FirmMixin, viewsets.ReadOnlyModelViewSet):
 
     def list(self, request, *args, **kwargs):
         """GET /api/motor/ (Cálculo dinâmico padrão inicial)"""
-        firm = self._get_firm_object()
+        firm_id = self._get_firm_id()
         hoje = timezone.localdate()
-        
+        cache_key = f"motor_prioridade:{firm_id}:{hoje.year}:{hoje.month}"
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached, status=status.HTTP_200_OK)
+
+        firm = self._get_firm_object()
         engine = MotorPrioridadeEngine(firm=firm)
         dados_calculados = engine.calcular_dinamico(ano=hoje.year, mes=hoje.month)
-        
+        cache.set(cache_key, dados_calculados, timeout=1800)
+
         track_event(
             user=request.user,
             event_name="motor_prioridade_calculado_dinamico",
@@ -39,7 +48,7 @@ class MotorPrioridadeViewSet(FirmMixin, viewsets.ReadOnlyModelViewSet):
                 "total_itens_retornados": len(dados_calculados.get("pagamentos_recomendados", [])) + len(dados_calculados.get("pagamentos_nao_cobertos", []))
             }
         )
-        
+
         return Response(dados_calculados, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"], url_path="salvar-configuracao")
@@ -83,5 +92,6 @@ class MotorPrioridadeViewSet(FirmMixin, viewsets.ReadOnlyModelViewSet):
             }
         )
         
+        invalidar_cache_motor(self._get_firm_id())
         response_serializer = self.get_serializer(simulacao_persistida)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
