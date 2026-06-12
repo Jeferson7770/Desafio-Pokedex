@@ -14,7 +14,7 @@ from ...finance.models.dinheiro import BankAccount
 from ..serializers.expenses import ExpenseSerializer, ExpenseDeferralSerializer
 from ...users.utils.telemetry import track_event
 from ...users.utils.firm_mixin import FirmMixin
-from ...users.utils.cache_utils import invalidar_cache_financeiro
+from ...users.utils.cache_utils import invalidar_cache_financeiro, invalidar_cache_motor
 
 
 class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
@@ -95,15 +95,19 @@ class ExpenseViewSet(FirmMixin, viewsets.ModelViewSet):
             raise ValidationError("O usuário não possui nenhuma empresa vinculada.")
         serializer.save(firm_id=firm_id)
         invalidar_cache_financeiro(firm_id)
+        invalidar_cache_motor(firm_id)
 
     def perform_update(self, serializer):
+        firm_id = self._get_firm_id()
         serializer.save()
-        invalidar_cache_financeiro(self._get_firm_id())
+        invalidar_cache_financeiro(firm_id)
+        invalidar_cache_motor(firm_id)
 
     def perform_destroy(self, instance):
         firm_id = self._get_firm_id()
         instance.delete()
         invalidar_cache_financeiro(firm_id)
+        invalidar_cache_motor(firm_id)
 
     @action(detail=False, methods=["post"], url_path="defer-installment/(?P<installment_pk>[^/.]+)")
     def defer_installment(self, request, installment_pk=None):

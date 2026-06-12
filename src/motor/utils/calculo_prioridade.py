@@ -70,8 +70,10 @@ class MotorPrioridadeEngine:
         if simulacao_salva:
             recomendados = []
             nao_cobertos = []
+            parcelas_na_simulacao = set()
 
             for item in simulacao_salva.items.all():
+                parcelas_na_simulacao.add(item.parcela_id)
                 item_data = {
                     "parcela": item.parcela.id,
                     "expense_title": item.parcela.expense.title,
@@ -87,11 +89,40 @@ class MotorPrioridadeEngine:
                 else:
                     nao_cobertos.append(item_data)
 
+            start = datetime.date(ano, mes, 1)
+            end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
+            novas_parcelas = ParcelaDespesa.objects.filter(
+                expense__firm=self.firm,
+                is_paid=False,
+                due_date__gte=start,
+                due_date__lt=end,
+                expense__is_active=True,
+            ).exclude(id__in=parcelas_na_simulacao).select_related("expense")
+
+            saldo_restante = Decimal(str(simulacao_salva.saldo_restante_pos_pagamentos))
+            for parcela in sorted(novas_parcelas, key=lambda p: p.due_date):
+                item_data = {
+                    "parcela": parcela.id,
+                    "expense_title": parcela.expense.title,
+                    "category": parcela.expense.category,
+                    "priority": parcela.expense.priority,
+                    "due_date": parcela.due_date.strftime("%Y-%m-%d"),
+                    "amount_snapshot": float(parcela.amount),
+                    "late_interest_snapshot": float(parcela.late_interest_cost),
+                }
+                if saldo_restante >= parcela.amount:
+                    item_data["status_recomendacao"] = "RECOMENDADO"
+                    saldo_restante -= parcela.amount
+                    recomendados.append(item_data)
+                else:
+                    item_data["status_recomendacao"] = "NAO_COBERTO"
+                    nao_cobertos.append(item_data)
+
             return {
                 "id": simulacao_salva.id,
                 "reference_period": f"{ano}-{str(mes).zfill(2)}",
                 "saldo_total_disponivel": float(simulacao_salva.saldo_total_disponivel),
-                "saldo_restante_pos_pagamentos": float(simulacao_salva.saldo_restante_pos_pagamentos),
+                "saldo_restante_pos_pagamentos": float(saldo_restante),
                 "pagamentos_recomendados": recomendados,
                 "pagamentos_nao_cobertos": nao_cobertos,
             }
