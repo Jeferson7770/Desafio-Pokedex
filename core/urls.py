@@ -2,9 +2,11 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 from src.firms.views.webhook import AbacatePayWebhookView
+from src.finance.views.dashboard_novo import DashboardView
 
 urlpatterns = [
     path("fince-admin/", admin.site.urls),
+    path("api/dashboard/", DashboardView.as_view(), name="dashboard"),
     path("api/auth/", include("src.users.urls")),
     path("api/firms/", include("src.firms.urls")),
     path("api/expenses/", include("src.expenses.urls")),

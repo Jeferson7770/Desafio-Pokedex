@@ -12,7 +12,7 @@ def invalidar_cache_financeiro(firm_id):
     Com Redis: usa delete_pattern para cobrir qualquer combinação de params (year/month, start_date/end_date).
     Fallback para LocMemCache (desenvolvimento local): apaga chaves do mês atual e anterior.
     """
-    prefixes = ["dashboard", "yearly_summary", "honorarios", "outras_entradas",
+    prefixes = ["dashboard", "dashboard_v2", "yearly_summary", "honorarios", "outras_entradas",
                 "financial_report", "cash_flow_summary"]
     try:
         for p in prefixes:
