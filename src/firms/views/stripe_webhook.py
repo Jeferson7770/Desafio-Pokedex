@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework import status
 
 from ..models.subscription import FirmSubscription
-from ...users.utils.telemetry import track_event
+from ...users.utils.telemetry import track_event, track_system_event
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +42,19 @@ class StripeWebhookView(APIView):
             )
         except stripe.error.SignatureVerificationError:
             logger.warning("Stripe webhook: assinatura inválida rejeitada")
+            track_system_event("stripe_webhook_assinatura_invalida")
             return Response({"detail": "Invalid signature."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error("Stripe webhook: erro ao construir evento — %s", str(e))
+            track_system_event("stripe_webhook_erro_construcao", {"erro": str(e)})
             return Response({"detail": "Webhook error."}, status=status.HTTP_400_BAD_REQUEST)
 
         event_type = event["type"]
+        event_id = event["id"]
         data = event["data"]["object"]
 
-        logger.info("Stripe webhook recebido: type=%s id=%s", event_type, event["id"])
+        logger.info("Stripe webhook recebido: type=%s id=%s", event_type, event_id)
+        track_system_event("stripe_webhook_recebido", {"event_type": event_type, "event_id": event_id})
 
         try:
             if event_type == "checkout.session.completed":
@@ -61,6 +65,7 @@ class StripeWebhookView(APIView):
                 self._handle_subscription_changed(data, event_type)
         except Exception as e:
             logger.error("Stripe webhook: erro ao processar event=%s — %s", event_type, str(e), exc_info=True)
+            track_system_event("stripe_webhook_erro_processamento", {"event_type": event_type, "event_id": event_id, "erro": str(e)})
             return Response({"detail": "Processing error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({"detail": "ok"}, status=status.HTTP_200_OK)
@@ -71,11 +76,13 @@ class StripeWebhookView(APIView):
 
         if not firm_subscription_id:
             logger.warning("Stripe webhook checkout.session.completed: metadata.firm_subscription_id ausente")
+            track_system_event("stripe_webhook_metadata_ausente", {"event_type": "checkout.session.completed"})
             return
 
         subscription = FirmSubscription.objects.filter(id=firm_subscription_id).first()
         if not subscription:
             logger.warning("Stripe webhook: FirmSubscription %s não encontrada", firm_subscription_id)
+            track_system_event("stripe_webhook_subscription_nao_encontrada", {"event_type": "checkout.session.completed", "firm_subscription_id": firm_subscription_id})
             return
 
         subscription.status = FirmSubscription.SubscriptionStatus.ACTIVE
@@ -89,10 +96,12 @@ class StripeWebhookView(APIView):
     def _handle_invoice_paid(self, invoice):
         stripe_sub_id = _attr(invoice, "subscription")
         if not stripe_sub_id:
+            track_system_event("stripe_webhook_metadata_ausente", {"event_type": "invoice.paid", "campo": "subscription"})
             return
 
         subscription = FirmSubscription.objects.filter(stripe_subscription_id=stripe_sub_id).first()
         if not subscription:
+            track_system_event("stripe_webhook_subscription_nao_encontrada", {"event_type": "invoice.paid", "stripe_subscription_id": stripe_sub_id})
             return
 
         subscription.status = FirmSubscription.SubscriptionStatus.ACTIVE
@@ -116,6 +125,7 @@ class StripeWebhookView(APIView):
         stripe_sub_id = _attr(stripe_sub, "id")
         subscription = FirmSubscription.objects.filter(stripe_subscription_id=stripe_sub_id).first()
         if not subscription:
+            track_system_event("stripe_webhook_subscription_nao_encontrada", {"event_type": event_type, "stripe_subscription_id": stripe_sub_id})
             return
 
         stripe_status = _attr(stripe_sub, "status")

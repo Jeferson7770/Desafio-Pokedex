@@ -7,7 +7,7 @@ from django.db import transaction
 
 from ...finance.services.stripe_service import StripeService
 from ...firms.models.subscription import Plan, FirmSubscription
-from ...users.utils.telemetry import track_event
+from ...users.utils.telemetry import track_event, track_system_event
 
 
 class CriarAssinaturaView(APIView):
@@ -67,6 +67,16 @@ class CriarAssinaturaView(APIView):
             for field, value in defaults.items():
                 setattr(plan, field, value)
             plan.save(update_fields=list(defaults.keys()))
+
+        if created:
+            track_system_event("plano_criado_automaticamente", {
+                "stripe_price_id": stripe_price_id,
+                "plan_id": plan.id,
+                "plan_name": plan.name,
+                "cycle": plan.cycle,
+                "price": str(plan.price),
+            })
+
         return plan
 
     def post(self, request):
@@ -154,7 +164,21 @@ class ListarPlanosView(APIView):
 
     def get(self, request):
         service = StripeService()
-        planos = service.listar_planos()
+        try:
+            planos = service.listar_planos()
+        except Exception as e:
+            track_event(
+                user=request.user,
+                event_name="planos_listagem_falha",
+                properties={"erro": str(e)},
+            )
+            raise
+
+        track_event(
+            user=request.user,
+            event_name="planos_listados",
+            properties={"total_planos": len(planos)},
+        )
         return Response({
             "data": planos,
             "stripe_publishable_key": service.publishable_key,

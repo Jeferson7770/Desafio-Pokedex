@@ -1,5 +1,17 @@
 import posthog
 
+
+def track_system_event(event_name, properties=None):
+    """Eventos de sistema sem usuário (ex: webhooks externos)."""
+    if getattr(posthog, "disabled", False):
+        return
+    posthog.capture(
+        distinct_id="system",
+        event=event_name,
+        properties=properties or {},
+    )
+
+
 def track_event(user, event_name, properties=None):
     if getattr(posthog, "disabled", False):
         return
