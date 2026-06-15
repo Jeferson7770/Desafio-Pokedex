@@ -8,6 +8,7 @@ from django.utils.decorators import method_decorator
 
 from ..serializers.register import RegisterSerializer
 from ..utils.telemetry import track_event
+from ..services.email_service import EmailService
 
 
 @method_decorator(ratelimit(key='ip', rate='5/m', method='POST', block=True), name='post')
@@ -28,6 +29,11 @@ class RegisterView(APIView):
                 properties={
                     "origem": "api_cadastro_direto"
                 }
+            )
+
+            EmailService().enviar_boas_vindas(
+                user_email=user.email,
+                user_name=user.first_name or user.email.split("@")[0],
             )
 
             return Response({

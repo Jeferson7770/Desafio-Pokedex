@@ -9,6 +9,7 @@ from django.utils.decorators import method_decorator
 from ..serializers.google_auth import GoogleRegisterSerializer, GoogleLoginSerializer
 from ..models.device import UserDevice
 from ..utils.telemetry import track_event
+from ..services.email_service import EmailService
 
 
 def _extract_device_info(request):
@@ -113,6 +114,11 @@ class GoogleRegisterView(APIView):
                     "browser": browser,
                     "ip_address": ip_address,
                 },
+            )
+
+            EmailService().enviar_boas_vindas(
+                user_email=user.email,
+                user_name=user.first_name or user.email.split("@")[0],
             )
 
             return Response(
