@@ -32,7 +32,7 @@ class StripeWebhookView(APIView):
                 sig_header=sig_header,
                 secret=webhook_secret,
             )
-        except stripe.errors.SignatureVerificationError:
+        except stripe.error.SignatureVerificationError:
             logger.warning("Stripe webhook: assinatura inválida rejeitada")
             return Response({"detail": "Invalid signature."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -44,14 +44,16 @@ class StripeWebhookView(APIView):
 
         logger.info("Stripe webhook recebido: type=%s id=%s", event_type, event["id"])
 
-        if event_type == "checkout.session.completed":
-            self._handle_checkout_completed(data)
-
-        elif event_type == "invoice.paid":
-            self._handle_invoice_paid(data)
-
-        elif event_type in ("customer.subscription.updated", "customer.subscription.deleted"):
-            self._handle_subscription_changed(data, event_type)
+        try:
+            if event_type == "checkout.session.completed":
+                self._handle_checkout_completed(data)
+            elif event_type == "invoice.paid":
+                self._handle_invoice_paid(data)
+            elif event_type in ("customer.subscription.updated", "customer.subscription.deleted"):
+                self._handle_subscription_changed(data, event_type)
+        except Exception as e:
+            logger.error("Stripe webhook: erro ao processar event=%s — %s", event_type, str(e), exc_info=True)
+            return Response({"detail": "Processing error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({"detail": "ok"}, status=status.HTTP_200_OK)
 
@@ -69,7 +71,7 @@ class StripeWebhookView(APIView):
         subscription.status = FirmSubscription.SubscriptionStatus.ACTIVE
         subscription.stripe_subscription_id = session.get("subscription")
         subscription.stripe_customer_id = session.get("customer")
-        subscription.save()
+        subscription.save(update_fields=["status", "stripe_subscription_id", "stripe_customer_id", "updated_at"])
 
         logger.info("Stripe webhook: FirmSubscription %s → ACTIVE (checkout.session.completed)", subscription.id)
         self._track(subscription, "checkout.session.completed")
@@ -88,8 +90,10 @@ class StripeWebhookView(APIView):
         period_end = invoice.get("lines", {}).get("data", [{}])[0].get("period", {}).get("end")
         if period_end:
             subscription.current_period_end = datetime.fromtimestamp(period_end, tz=timezone.utc)
+            subscription.save(update_fields=["status", "current_period_end", "updated_at"])
+        else:
+            subscription.save(update_fields=["status", "updated_at"])
 
-        subscription.save()
         logger.info("Stripe webhook: FirmSubscription %s → ACTIVE (invoice.paid)", subscription.id)
         self._track(subscription, "invoice.paid")
 
@@ -100,17 +104,21 @@ class StripeWebhookView(APIView):
             return
 
         stripe_status = stripe_sub.get("status")
+        update_fields = ["updated_at"]
 
         if event_type == "customer.subscription.deleted" or stripe_status == "canceled":
             subscription.status = FirmSubscription.SubscriptionStatus.CANCELLED
+            update_fields.append("status")
         elif stripe_status == "active":
             subscription.status = FirmSubscription.SubscriptionStatus.ACTIVE
+            update_fields.append("status")
 
         period_end = stripe_sub.get("current_period_end")
         if period_end:
             subscription.current_period_end = datetime.fromtimestamp(period_end, tz=timezone.utc)
+            update_fields.append("current_period_end")
 
-        subscription.save()
+        subscription.save(update_fields=update_fields)
         logger.info("Stripe webhook: FirmSubscription %s atualizada (event=%s)", subscription.id, event_type)
         self._track(subscription, event_type)
 
