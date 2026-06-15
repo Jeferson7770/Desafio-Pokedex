@@ -57,7 +57,7 @@ The backend calls `stripe.Price.list()` internally, filters for active prices wi
 
 > `id` is the Stripe Price ID (`price_*`). This is what you send in the checkout step.
 
-> `cycle` values: `MONTHLY`, `ANNUAL`, `SEMIANNUAL`. Stripe's API returns `month` / `year`; the backend normalizes these before returning.
+> `cycle` values: `WEEKLY`, `MONTHLY`, `QUARTERLY`, `SEMIANNUALLY`, `ANNUALLY`. Stripe's `interval` + `interval_count` are normalized: `month×1→MONTHLY`, `month×3→QUARTERLY`, `month×6→SEMIANNUALLY`, `month×12+→ANNUALLY`, `year→ANNUALLY`.
 
 ### Stripe external call
 

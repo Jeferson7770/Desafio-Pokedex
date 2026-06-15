@@ -24,16 +24,49 @@ class CriarAssinaturaView(APIView):
 
         return Plan.objects.filter(stripe_price_id=plan_identifier, is_active=True).first()
 
+    @staticmethod
+    def _stripe_cycle(recurring):
+        if not recurring:
+            return Plan.CycleType.MONTHLY
+        interval = getattr(recurring, "interval", None)
+        count = getattr(recurring, "interval_count", 1) or 1
+        if interval == "year":
+            return Plan.CycleType.ANNUALLY
+        if interval == "week":
+            return Plan.CycleType.WEEKLY
+        # interval == "month"
+        if count >= 12:
+            return Plan.CycleType.ANNUALLY
+        if count >= 6:
+            return Plan.CycleType.SEMIANNUALLY
+        if count >= 3:
+            return Plan.CycleType.QUARTERLY
+        return Plan.CycleType.MONTHLY
+
     def _bootstrap_plan_from_stripe_price(self, stripe_price_id):
-        plan, _ = Plan.objects.get_or_create(
-            stripe_price_id=stripe_price_id,
-            defaults={
-                "name": f"Stripe {stripe_price_id[:40]}",
-                "price": "0.00",
-                "cycle": Plan.CycleType.MONTHLY,
-                "is_active": True,
-            },
-        )
+        defaults = {
+            "name": f"Stripe {stripe_price_id[:40]}",
+            "price": "0.00",
+            "cycle": Plan.CycleType.MONTHLY,
+            "is_active": True,
+        }
+        try:
+            import stripe as stripe_sdk
+            from decouple import config
+            stripe_sdk.api_key = config("STRIPE_SECRET_KEY")
+            price = stripe_sdk.Price.retrieve(stripe_price_id, expand=["product"])
+            defaults["name"] = getattr(price.product, "name", defaults["name"])
+            defaults["price"] = str(int(getattr(price, "unit_amount", 0) or 0) / 100)
+            defaults["cycle"] = self._stripe_cycle(getattr(price, "recurring", None))
+            defaults["is_active"] = getattr(price, "active", True)
+        except Exception:
+            pass
+
+        plan, created = Plan.objects.get_or_create(stripe_price_id=stripe_price_id, defaults=defaults)
+        if not created:
+            for field, value in defaults.items():
+                setattr(plan, field, value)
+            plan.save(update_fields=list(defaults.keys()))
         return plan
 
     def post(self, request):

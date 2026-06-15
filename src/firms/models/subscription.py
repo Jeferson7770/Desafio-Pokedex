@@ -5,6 +5,7 @@ class Plan(models.Model):
     class CycleType(models.TextChoices):
         WEEKLY = "WEEKLY", "Weekly"
         MONTHLY = "MONTHLY", "Monthly"
+        QUARTERLY = "QUARTERLY", "Quarterly"
         SEMIANNUALLY = "SEMIANNUALLY", "Semiannual"
         ANNUALLY = "ANNUALLY", "Annual"
 
