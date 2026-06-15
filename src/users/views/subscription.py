@@ -120,9 +120,13 @@ class CriarAssinaturaView(APIView):
                     defaults={"plan": plan, "status": FirmSubscription.SubscriptionStatus.PENDING},
                 )
 
-                if not created and subscription.status == FirmSubscription.SubscriptionStatus.PENDING:
+                upgradeable = (
+                    FirmSubscription.SubscriptionStatus.PENDING,
+                    FirmSubscription.SubscriptionStatus.TRIAL,
+                )
+                if not created and subscription.status in upgradeable:
                     subscription.plan = plan
-                    subscription.save()
+                    subscription.save(update_fields=["plan", "updated_at"])
 
                 service = StripeService()
                 dados_checkout = service.criar_checkout_session(

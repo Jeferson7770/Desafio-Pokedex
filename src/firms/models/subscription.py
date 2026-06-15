@@ -23,17 +23,19 @@ class Plan(models.Model):
 
 class FirmSubscription(models.Model):
     class SubscriptionStatus(models.TextChoices):
+        TRIAL = "TRIAL", "Trial"
         PENDING = "PENDING", "Pending"
         ACTIVE = "ACTIVE", "Active"
         EXPIRED = "EXPIRED", "Expired"
         CANCELLED = "CANCELLED", "Cancelled"
 
     firm = models.OneToOneField(Firm, on_delete=models.CASCADE, related_name="subscription")
-    plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name="subscriptions")
+    plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name="subscriptions", null=True, blank=True)
     abacatepay_billing_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True, unique=True, help_text="Stripe Subscription ID (sub_*)")
     stripe_customer_id = models.CharField(max_length=255, blank=True, null=True, help_text="Stripe Customer ID (cus_*)")
-    status = models.CharField(max_length=20, choices=SubscriptionStatus.choices, default=SubscriptionStatus.PENDING)
+    status = models.CharField(max_length=20, choices=SubscriptionStatus.choices, default=SubscriptionStatus.TRIAL)
+    trial_ends_at = models.DateTimeField(blank=True, null=True, help_text="End of free trial period")
     current_period_end = models.DateTimeField(blank=True, null=True, help_text="Current cycle expiration date")
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)

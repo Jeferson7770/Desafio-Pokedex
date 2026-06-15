@@ -1,5 +1,7 @@
 # Stripe Payment Integration Guide
 
+> **Trial gratuito de 7 dias**: ao criar um escritório, o sistema automaticamente ativa um período de trial de 7 dias sem necessidade de cartão de crédito. O campo `billing.is_on_trial` indica se o usuário está no período trial. Durante o trial, `is_premium_active` retorna `true`. Após o vencimento, retorna `false` até o usuário assinar um plano.
+
 This document describes the complete subscription payment flow between the frontend, the Fincecore backend, and the Stripe gateway.
 
 ## 1. Overview
@@ -221,34 +223,105 @@ Select events: `checkout.session.completed`, `invoice.paid`, `customer.subscript
 
 ---
 
-## 6. Post-Payment Status Polling
+## 6. Billing Status — Trial, Pagamento e Bloqueio
 
-After the user lands on `/app/payment/success`, the frontend polls the lawyer profile to detect activation:
+O campo `billing` está disponível em:
 
 ```http
 GET /api/auth/laywer-profile/
 Authorization: Bearer <JWT token>
 ```
 
-The `billing` field in the response comes from `FirmSubscription` (the same record updated by the webhook):
+### Campos do objeto `billing`
 
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `status` | string | `TRIAL`, `PENDING`, `ACTIVE`, `CANCELLED`, `EXPIRED` |
+| `is_premium_active` | boolean | `true` se o usuário tem acesso (trial ativo OU assinatura ativa) |
+| `is_on_trial` | boolean | `true` se está no período de trial e o trial ainda não venceu |
+| `trial_ends_at` | string \| null | Data de vencimento do trial (`"dd/MM/yyyy"`) |
+| `next_renewal` | string \| null | Data de renovação da assinatura paga (`"dd/MM/yyyy"`) |
+| `plan_details` | object \| null | Dados do plano contratado; `null` durante o trial |
+
+### Cenários e respostas
+
+**Trial ativo (primeiros 7 dias, sem cartão)**
+```json
+{
+  "billing": {
+    "status": "TRIAL",
+    "is_premium_active": true,
+    "is_on_trial": true,
+    "trial_ends_at": "22/06/2026",
+    "next_renewal": null,
+    "plan_details": null
+  }
+}
+```
+
+**Trial vencido sem assinatura**
+```json
+{
+  "billing": {
+    "status": "TRIAL",
+    "is_premium_active": false,
+    "is_on_trial": false,
+    "trial_ends_at": "22/06/2026",
+    "next_renewal": null,
+    "plan_details": null
+  }
+}
+```
+
+**Assinatura ativa (pós-pagamento)**
 ```json
 {
   "billing": {
     "status": "ACTIVE",
     "is_premium_active": true,
+    "is_on_trial": false,
+    "trial_ends_at": "22/06/2026",
     "next_renewal": "10/07/2026",
     "plan_details": {
-      "id": 1,
-      "name": "Professional Plan",
-      "price": "199.00",
+      "id": 11,
+      "name": "Fince - 1",
+      "price": "99.99",
       "cycle": "MONTHLY"
     }
   }
 }
 ```
 
-Poll until `billing.status === 'ACTIVE'`. Do not grant access based on URL params or `session_id` alone.
+### Lógica de acesso recomendada para o frontend
+
+```ts
+const { is_premium_active, is_on_trial, trial_ends_at, status } = billing;
+
+if (is_premium_active) {
+  // libera acesso — pode ser trial ou assinatura ativa
+  if (is_on_trial) {
+    // mostrar banner: "Seu trial termina em {trial_ends_at}"
+  }
+} else {
+  // bloquear acesso e redirecionar para tela de planos
+  if (status === 'TRIAL') {
+    // "Seu período gratuito encerrou. Escolha um plano para continuar."
+  } else if (status === 'CANCELLED' || status === 'EXPIRED') {
+    // "Sua assinatura foi cancelada."
+  }
+}
+```
+
+> **Nunca libere acesso baseado apenas no `status`**. Use sempre `is_premium_active`, pois ele consolida trial + assinatura + validade de período.
+
+### Polling após pagamento
+
+Após o redirecionamento de `/app/payment/success`, faça polling até `status === 'ACTIVE'`:
+
+```ts
+// O webhook da Stripe pode demorar alguns segundos para chegar
+poll until billing.status === 'ACTIVE'
+```
 
 ---
 
@@ -260,17 +333,24 @@ sequenceDiagram
   participant BE as Backend (Django)
   participant ST as Stripe
 
+  Note over FE,BE: Cadastro e trial automático
+  FE->>BE: POST /api/auth/firms/ { name, type }
+  BE-->>BE: Firm criada + FirmSubscription(status=TRIAL, trial_ends_at=now+7d)
+  BE-->>FE: { id, name, type }
+
+  FE->>BE: GET /api/auth/laywer-profile/
+  BE-->>FE: { billing: { status: "TRIAL", is_premium_active: true, is_on_trial: true, trial_ends_at: "..." } }
+
+  Note over FE,BE: Usuário decide assinar
   FE->>BE: GET /api/auth/subscription/planos/
   BE->>ST: GET /v1/prices?expand[]=data.product
   ST-->>BE: { data: [...prices] }
   BE-->>FE: { data: [...plans] }
 
-  Note over FE: User selects a plan
-
   FE->>BE: POST /api/auth/subscription/checkout/ { plan_id }
   BE->>ST: POST /v1/checkout/sessions (mode=subscription)
   ST-->>BE: { id, url }
-  BE-->>FE: { checkout_url, subscription_id, status: PENDING }
+  BE-->>FE: { checkout_url, subscription_id, status: TRIAL }
   FE->>ST: Redirect to checkout_url
 
   ST-->>FE: Redirect to /app/payment/success?session_id=...
@@ -282,7 +362,7 @@ sequenceDiagram
 
   loop Poll until ACTIVE
     FE->>BE: GET /api/auth/laywer-profile/
-    BE-->>FE: { billing: { status: "ACTIVE" } }
+    BE-->>FE: { billing: { status: "ACTIVE", is_premium_active: true } }
   end
 
   Note over ST,BE: Recurring billing events

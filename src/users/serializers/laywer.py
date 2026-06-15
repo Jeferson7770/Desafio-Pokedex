@@ -103,12 +103,25 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
             sub = getattr(membership.firm, 'subscription', None)
             if not sub:
                 return None
-            is_active = sub.status == 'ACTIVE' and (
-                sub.current_period_end is None or sub.current_period_end > timezone.now()
+
+            now = timezone.now()
+            is_on_trial = (
+                sub.status == 'TRIAL'
+                and sub.trial_ends_at is not None
+                and sub.trial_ends_at > now
             )
+            is_active = sub.status == 'ACTIVE' and (
+                sub.current_period_end is None or sub.current_period_end > now
+            )
+
             return {
                 "status": sub.status,
-                "is_premium_active": is_active,
+                "is_premium_active": is_on_trial or is_active,
+                "is_on_trial": is_on_trial,
+                "trial_ends_at": (
+                    sub.trial_ends_at.strftime("%d/%m/%Y")
+                    if sub.trial_ends_at else None
+                ),
                 "next_renewal": (
                     sub.current_period_end.strftime("%d/%m/%Y")
                     if sub.current_period_end else None
