@@ -9,7 +9,8 @@ class Plan(models.Model):
         ANNUALLY = "ANNUALLY", "Annual"
 
     name = models.CharField(max_length=100)
-    abacatepay_product_id = models.CharField(max_length=255, unique=True, help_text="Product ID generated in the AbacatePay dashboard")
+    abacatepay_product_id = models.CharField(max_length=255, unique=True, null=True, blank=True, help_text="Product ID generated in the AbacatePay dashboard")
+    stripe_price_id = models.CharField(max_length=255, unique=True, null=True, blank=True, help_text="Stripe Price ID (price_*)")
     cycle = models.CharField(max_length=20, choices=CycleType.choices, default=CycleType.MONTHLY)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
@@ -29,6 +30,8 @@ class FirmSubscription(models.Model):
     firm = models.OneToOneField(Firm, on_delete=models.CASCADE, related_name="subscription")
     plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name="subscriptions")
     abacatepay_billing_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True, unique=True, help_text="Stripe Subscription ID (sub_*)")
+    stripe_customer_id = models.CharField(max_length=255, blank=True, null=True, help_text="Stripe Customer ID (cus_*)")
     status = models.CharField(max_length=20, choices=SubscriptionStatus.choices, default=SubscriptionStatus.PENDING)
     current_period_end = models.DateTimeField(blank=True, null=True, help_text="Current cycle expiration date")
     updated_at = models.DateTimeField(auto_now=True)

@@ -23,6 +23,7 @@ gunicorn = "^26.0.0"
 python-dateutil = "^2.9.0.post0"
 posthog = "^7.16.2"
 django-redis = "^5.4.0"
+stripe = "^15.2.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
