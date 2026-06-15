@@ -17,6 +17,14 @@ from ...users.utils.telemetry import track_event
 logger = logging.getLogger(__name__)
 
 
+def _attr(obj, key, default=None):
+    """Acesso seguro a atributos de objetos Stripe SDK v15 (não suportam .get())."""
+    try:
+        return getattr(obj, key, default)
+    except Exception:
+        return default
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class StripeWebhookView(APIView):
     permission_classes = [AllowAny]
@@ -58,7 +66,9 @@ class StripeWebhookView(APIView):
         return Response({"detail": "ok"}, status=status.HTTP_200_OK)
 
     def _handle_checkout_completed(self, session):
-        firm_subscription_id = session.get("metadata", {}).get("firm_subscription_id")
+        metadata = _attr(session, "metadata") or {}
+        firm_subscription_id = metadata.get("firm_subscription_id") if hasattr(metadata, "get") else _attr(metadata, "firm_subscription_id")
+
         if not firm_subscription_id:
             logger.warning("Stripe webhook checkout.session.completed: metadata.firm_subscription_id ausente")
             return
@@ -69,15 +79,15 @@ class StripeWebhookView(APIView):
             return
 
         subscription.status = FirmSubscription.SubscriptionStatus.ACTIVE
-        subscription.stripe_subscription_id = session.get("subscription")
-        subscription.stripe_customer_id = session.get("customer")
+        subscription.stripe_subscription_id = _attr(session, "subscription")
+        subscription.stripe_customer_id = _attr(session, "customer")
         subscription.save(update_fields=["status", "stripe_subscription_id", "stripe_customer_id", "updated_at"])
 
         logger.info("Stripe webhook: FirmSubscription %s → ACTIVE (checkout.session.completed)", subscription.id)
         self._track(subscription, "checkout.session.completed")
 
     def _handle_invoice_paid(self, invoice):
-        stripe_sub_id = invoice.get("subscription")
+        stripe_sub_id = _attr(invoice, "subscription")
         if not stripe_sub_id:
             return
 
@@ -87,23 +97,28 @@ class StripeWebhookView(APIView):
 
         subscription.status = FirmSubscription.SubscriptionStatus.ACTIVE
 
-        period_end = invoice.get("lines", {}).get("data", [{}])[0].get("period", {}).get("end")
-        if period_end:
-            subscription.current_period_end = datetime.fromtimestamp(period_end, tz=timezone.utc)
-            subscription.save(update_fields=["status", "current_period_end", "updated_at"])
-        else:
-            subscription.save(update_fields=["status", "updated_at"])
+        try:
+            lines = _attr(invoice, "lines")
+            lines_data = _attr(lines, "data") or []
+            if lines_data:
+                period = _attr(lines_data[0], "period")
+                period_end = _attr(period, "end") if period else None
+                if period_end:
+                    subscription.current_period_end = datetime.fromtimestamp(period_end, tz=timezone.utc)
+        except Exception:
+            pass
 
+        subscription.save(update_fields=["status", "current_period_end", "updated_at"])
         logger.info("Stripe webhook: FirmSubscription %s → ACTIVE (invoice.paid)", subscription.id)
         self._track(subscription, "invoice.paid")
 
     def _handle_subscription_changed(self, stripe_sub, event_type):
-        stripe_sub_id = stripe_sub.get("id")
+        stripe_sub_id = _attr(stripe_sub, "id")
         subscription = FirmSubscription.objects.filter(stripe_subscription_id=stripe_sub_id).first()
         if not subscription:
             return
 
-        stripe_status = stripe_sub.get("status")
+        stripe_status = _attr(stripe_sub, "status")
         update_fields = ["updated_at"]
 
         if event_type == "customer.subscription.deleted" or stripe_status == "canceled":
@@ -113,7 +128,7 @@ class StripeWebhookView(APIView):
             subscription.status = FirmSubscription.SubscriptionStatus.ACTIVE
             update_fields.append("status")
 
-        period_end = stripe_sub.get("current_period_end")
+        period_end = _attr(stripe_sub, "current_period_end")
         if period_end:
             subscription.current_period_end = datetime.fromtimestamp(period_end, tz=timezone.utc)
             update_fields.append("current_period_end")
