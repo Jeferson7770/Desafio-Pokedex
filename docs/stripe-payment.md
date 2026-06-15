@@ -300,9 +300,24 @@ sequenceDiagram
 
 | Variable | Purpose |
 |---|---|
-| `STRIPE_SECRET_KEY` | API key for all outbound Stripe calls (`sk_live_*` or `sk_test_*`) |
+| `STRIPE_SECRET_KEY` | Secret key for all server-side Stripe API calls (`sk_live_*` or `sk_test_*`) — never exposed to the client |
+| `STRIPE_PUBLISHABLE_KEY` | Publishable key returned to the frontend for Stripe.js usage (`pk_live_*` or `pk_test_*`) — safe to expose |
 | `STRIPE_WEBHOOK_SECRET` | Signing secret for validating inbound webhooks (`whsec_*`) |
 | `FRONTEND_URL` | Base URL used to build `success_url` and `cancel_url` |
+
+### Where each key is used
+
+- **`STRIPE_SECRET_KEY`** — used exclusively in `StripeService.__init__()` to set `stripe.api_key`. Never returned in any response.
+- **`STRIPE_PUBLISHABLE_KEY`** — returned in the `GET /api/auth/subscription/planos/` response as `stripe_publishable_key`. The frontend uses this to initialize `Stripe(publishable_key)` when building custom payment forms with Stripe Elements (optional for the hosted Checkout flow).
+
+**Response shape with the publishable key:**
+
+```json
+{
+  "data": [...plans],
+  "stripe_publishable_key": "pk_live_..."
+}
+```
 
 ---
 

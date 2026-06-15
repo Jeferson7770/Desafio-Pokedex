@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 from src.firms.views.webhook import AbacatePayWebhookView
+from src.firms.views.stripe_webhook import StripeWebhookView
 from src.finance.views.dashboard_novo import DashboardView
 
 urlpatterns = [
@@ -23,6 +24,7 @@ urlpatterns = [
     path("api/outras-entradas/", include("src.other_income.urls")),
     path("api/cases/", include("src.cases.urls")),
     path("api/webhooks/abacatepay/", AbacatePayWebhookView.as_view()),
+    path("api/webhooks/stripe/", StripeWebhookView.as_view()),
 ]
 
 if settings.DEBUG:
