@@ -131,7 +131,7 @@ class LawyerProfileSerializer(serializers.ModelSerializer):
                     "name": sub.plan.name,
                     "price": str(sub.plan.price),
                     "cycle": sub.plan.cycle,
-                } if sub.plan_id else None,
+                } if sub.plan_id and sub.status == "ACTIVE" else None,
             }
         except Exception:
             return None
