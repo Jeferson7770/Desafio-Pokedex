@@ -178,21 +178,26 @@ class MotorPrioridadeEngine:
         end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
 
         if simulacao_salva:
+            saldo_disponivel = self.obter_saldo_consolidado()
+            saldo_restante = saldo_disponivel
             recomendados = []
             nao_cobertos = []
             parcelas_na_simulacao = set()
 
             for item in simulacao_salva.items.all():
                 parcelas_na_simulacao.add(item.parcela_id)
-                item_data = self._item_de_parcela(item.parcela, item.status_recomendacao)
+                # Recompute status sequentially from current balance — never trust stored value,
+                # which may have been saved before the always-deduct fix.
+                status_rec = "RECOMENDADO" if saldo_restante >= item.amount_snapshot else "NAO_COBERTO"
+                saldo_restante -= item.amount_snapshot
+
+                item_data = self._item_de_parcela(item.parcela, status_rec)
                 item_data["amount_snapshot"] = float(item.amount_snapshot)
                 item_data["late_interest_snapshot"] = float(item.late_interest_snapshot)
-                if item.status_recomendacao == "RECOMENDADO":
+                if status_rec == "RECOMENDADO":
                     recomendados.append(item_data)
                 else:
                     nao_cobertos.append(item_data)
-
-            saldo_restante = Decimal(str(simulacao_salva.saldo_restante_pos_pagamentos))
 
             novas_parcelas = list(
                 ParcelaDespesa.objects.filter(
@@ -232,7 +237,7 @@ class MotorPrioridadeEngine:
             return {
                 "id": simulacao_salva.id,
                 "reference_period": f"{ano}-{str(mes).zfill(2)}",
-                "saldo_total_disponivel": float(simulacao_salva.saldo_total_disponivel),
+                "saldo_total_disponivel": float(saldo_disponivel),
                 "saldo_restante_pos_pagamentos": float(saldo_restante),
                 "pagamentos_recomendados": recomendados,
                 "pagamentos_nao_cobertos": nao_cobertos,
