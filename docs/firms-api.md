@@ -78,7 +78,7 @@ POST /api/firms/
 }
 ```
 
-The creator is added as `OWNER` automatically.
+The creator is added as `OWNER` automatically. On creation, the backend also creates a `FirmSubscription` with `status=TRIAL` and `trial_ends_at=now+7days` — no credit card required. See [stripe-payment.md](stripe-payment.md) for the full trial and billing flow.
 
 ## 6. Retrieve firm
 

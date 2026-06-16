@@ -1,40 +1,67 @@
 # Stripe Payment Integration Guide
 
-> **Trial gratuito de 7 dias**: ao criar um escritório, o sistema automaticamente ativa um período de trial de 7 dias sem necessidade de cartão de crédito. O campo `billing.is_on_trial` indica se o usuário está no período trial. Durante o trial, `is_premium_active` retorna `true`. Após o vencimento, retorna `false` até o usuário assinar um plano.
-
-This document describes the complete subscription payment flow between the frontend, the Fincecore backend, and the Stripe gateway.
+This document describes the complete subscription payment flow between the frontend, the Fincecore backend, and the Stripe gateway — including the 7-day free trial, checkout, recurring billing, and cancellation.
 
 ## 1. Overview
 
-The full integration has four steps:
-
-1. **List plans** — frontend fetches available products from the backend, which proxies Stripe's price catalog.
-2. **User selects a plan** — frontend presents the options; user picks one.
-3. **Create checkout** — frontend sends the chosen price ID to the backend, which creates a Stripe Checkout Session and returns a hosted checkout URL.
-4. **Webhook confirmation** — Stripe calls the backend after payment events; the backend updates subscription status.
+| Step | Description |
+|---|---|
+| Trial | Firm is created → 7-day free trial starts automatically, no credit card required |
+| List plans | Frontend fetches available plans from the backend |
+| Checkout | Frontend sends chosen price ID → backend creates a Stripe Checkout Session |
+| Webhook | Stripe notifies backend of payment events; backend updates subscription status |
+| Cancel | User requests cancellation → access continues until period end |
 
 Main files:
 
 | File | Responsibility |
 |---|---|
-| `src/finance/services/stripe_service.py` | `StripeService` — all outbound API calls |
-| `src/users/views/subscription.py` | `ListarPlanosView`, `CriarAssinaturaView` |
+| `src/finance/services/stripe_service.py` | `StripeService` — all outbound Stripe API calls |
+| `src/users/views/subscription.py` | `ListarPlanosView`, `CriarAssinaturaView`, `CancelarAssinaturaView` |
 | `src/firms/views/stripe_webhook.py` | `StripeWebhookView` — inbound webhook handler |
-| `src/firms/models/subscription.py` | `Plan` (`stripe_price_id`), `FirmSubscription` (`stripe_subscription_id`, `stripe_customer_id`) |
-| `src/users/serializers/laywer.py` | Exposes `billing` field from `FirmSubscription` on the lawyer profile |
+| `src/firms/models/subscription.py` | `Plan`, `FirmSubscription` |
+| `src/users/serializers/laywer.py` | Exposes `billing` field on the lawyer profile |
 
 ---
 
-## 2. Step 1 — Fetch Available Plans
+## 2. Free Trial (Automatic)
 
-### Endpoint
+When a firm is created via `POST /api/firms/`, the backend automatically creates a `FirmSubscription` with:
+
+```json
+{
+  "status": "TRIAL",
+  "trial_ends_at": "<now + 7 days>"
+}
+```
+
+No credit card required. Access is fully active during the trial period.
+
+The `billing` object on the lawyer profile reflects trial state:
+
+```json
+{
+  "status": "TRIAL",
+  "is_premium_active": true,
+  "is_on_trial": true,
+  "trial_ends_at": "22/06/2026",
+  "next_renewal": null,
+  "plan_details": null
+}
+```
+
+After trial expiry, `is_premium_active` becomes `false` until the user subscribes.
+
+---
+
+## 3. List Available Plans
 
 ```http
 GET /api/auth/subscription/planos/
-Authorization: Bearer <JWT token>
+Authorization: Bearer <JWT>
 ```
 
-The backend calls `stripe.Price.list()` internally, filters for active prices with a recurring interval, and returns a normalized list.
+The backend proxies Stripe's price catalog via `stripe.Price.list()`, filtering for active recurring prices.
 
 **Response `200`:**
 
@@ -48,54 +75,37 @@ The backend calls `stripe.Price.list()` internally, filters for active prices wi
       "price": 19900,
       "currency": "BRL",
       "cycle": "MONTHLY",
-      "imageUrl": null,
       "status": "ACTIVE"
     }
-  ]
+  ],
+  "stripe_publishable_key": "pk_live_..."
 }
 ```
 
-> `price` is in cents. Divide by 100 to display (e.g. `19900` → R$199,00).
+> `price` is in cents. Divide by 100 to display (e.g. `19900` → R$199.00).
 
-> `id` is the Stripe Price ID (`price_*`). This is what you send in the checkout step.
+> `id` is the Stripe Price ID (`price_*`). Pass this in the checkout step.
 
-> `cycle` values: `WEEKLY`, `MONTHLY`, `QUARTERLY`, `SEMIANNUALLY`, `ANNUALLY`. Stripe's `interval` + `interval_count` are normalized: `month×1→MONTHLY`, `month×3→QUARTERLY`, `month×6→SEMIANNUALLY`, `month×12+→ANNUALLY`, `year→ANNUALLY`.
+> `cycle` values: `WEEKLY`, `MONTHLY`, `QUARTERLY`, `SEMIANNUALLY`, `ANNUALLY`. Stripe's `interval` + `interval_count` are normalized: month×1→MONTHLY, month×3→QUARTERLY, month×6→SEMIANNUALLY, month×12→ANNUALLY, year→ANNUALLY.
 
-### Stripe external call
-
-```http
-GET https://api.stripe.com/v1/prices
-Authorization: Bearer <STRIPE_SECRET_KEY>
-```
-
-Handled by `StripeService.listar_planos()`. Expands `data.product` to retrieve product name and description in a single call.
+> `stripe_publishable_key` is used by the frontend to initialize `Stripe(publishable_key)` for Stripe Elements (optional for hosted Checkout flow).
 
 ---
 
-## 3. Step 2 — User Selects a Plan
-
-The frontend renders the plan list and stores the chosen plan's `id` (e.g. `"price_1Abc123XYZ"`) locally. No backend call is needed at this step.
-
----
-
-## 4. Step 3 — Create Subscription Checkout
-
-### Endpoint
+## 4. Create Subscription Checkout
 
 ```http
 POST /api/auth/subscription/checkout/
-Authorization: Bearer <JWT token>
+Authorization: Bearer <JWT>
 Content-Type: application/json
 ```
 
-Also available at `/api/auth/billing/subscription/checkout/` (legacy alias — both routes point to the same view).
+Also available at `/api/auth/billing/subscription/checkout/` (legacy alias).
 
-**Request body:**
+**Request:**
 
 ```json
-{
-  "plan_id": "price_1Abc123XYZ"
-}
+{ "plan_id": "price_1Abc123XYZ" }
 ```
 
 `plan_id` accepts either the Stripe Price ID (`price_*`) or the internal numeric `Plan.id`.
@@ -106,28 +116,23 @@ Also available at `/api/auth/billing/subscription/checkout/` (legacy alias — b
 {
   "checkout_url": "https://checkout.stripe.com/pay/cs_live_...",
   "subscription_id": 42,
-  "status": "PENDING"
+  "status": "TRIAL"
 }
 ```
 
-### What the backend does internally
+The `status` reflects the subscription state before payment — typically `TRIAL` if the user is upgrading from trial, or `PENDING` for new subscriptions.
 
-View: `CriarAssinaturaView` in `src/users/views/subscription.py`.
+### What the backend does
 
-1. Resolves `plan_id` to an active `Plan` record (creates a stub if only the Stripe price ID is known).
+1. Resolves `plan_id` to an active `Plan` record (auto-creates a stub from Stripe if only the price ID is known).
 2. Gets the authenticated user's firm via `firm_memberships.first()`.
-3. Creates or reuses a `FirmSubscription` with `status = PENDING`.
+3. Creates or reuses a `FirmSubscription` (TRIAL and PENDING statuses are upgradeable).
 4. Calls `StripeService.criar_checkout_session()` → Stripe Checkout Session API.
-5. Returns `checkout_url`, `subscription_id`, and `status`.
+5. Returns `checkout_url`, `subscription_id`, and current `status`.
 
 > `stripe_subscription_id` and `stripe_customer_id` are populated later by the webhook, not at checkout creation time.
 
-### Stripe external call
-
-```http
-POST https://api.stripe.com/v1/checkout/sessions
-Authorization: Bearer <STRIPE_SECRET_KEY>
-```
+### Stripe Checkout Session payload
 
 ```json
 {
@@ -153,47 +158,34 @@ const { data } = await api.post('/api/auth/subscription/checkout/', { plan_id: s
 window.location.href = data.checkout_url;
 ```
 
-Store `subscription_id` locally before redirecting so you can resume the UX after return.
-
-### Return URLs
-
-After the payment interaction, Stripe redirects to:
-
-- `/app/payment/success?session_id={CHECKOUT_SESSION_ID}` — payment was completed.
-- `/app/payment/return` — user navigated back without completing.
+After the user completes payment, Stripe redirects to `/app/payment/success?session_id=...`. Poll `GET /api/auth/laywer-profile/` until `billing.status === 'ACTIVE'`.
 
 ---
 
-## 5. Step 4 — Webhook Confirmation
+## 5. Webhook Confirmation
 
-Stripe calls the webhook endpoint after payment events. The backend updates `FirmSubscription.status` accordingly.
-
-### Endpoint
+Stripe calls the webhook endpoint after payment events. The backend updates `FirmSubscription` accordingly.
 
 ```http
 POST /api/webhooks/stripe/
 ```
 
-No authentication required. Requests are validated by Stripe's signature verification (see below).
+No authentication required. Requests are validated by Stripe's HMAC-SHA256 signature.
 
 ### Handled events
 
 | Event | Action |
 |---|---|
-| `checkout.session.completed` | `FirmSubscription.status → ACTIVE`, persists `stripe_subscription_id`, `stripe_customer_id`, `current_period_end` |
-| `invoice.paid` | `FirmSubscription.status → ACTIVE`, updates `current_period_end` |
-| `customer.subscription.updated` | Updates `current_period_end`; if `status == canceled` sets `CANCELLED` |
-| `customer.subscription.deleted` | `FirmSubscription.status → CANCELLED` |
+| `checkout.session.completed` | Sets `status → ACTIVE`, persists `stripe_subscription_id`, `stripe_customer_id` |
+| `invoice.paid` | Sets `status → ACTIVE`, updates `current_period_end` |
+| `customer.subscription.updated` | Updates `current_period_end`; if `cancel_at_period_end=true`, stamps `cancelled_at`; if `status=canceled`, sets `CANCELLED` |
+| `customer.subscription.deleted` | Sets `status → CANCELLED` |
 
 Unrecognised events receive `200 OK` with no state change.
 
 ### Signature validation
 
-Stripe signs each webhook using a timestamp + HMAC-SHA256 scheme. The backend validates the `Stripe-Signature` header using the official SDK:
-
 ```python
-import stripe
-
 event = stripe.Webhook.construct_event(
     payload=request.body,
     sig_header=request.headers.get("Stripe-Signature"),
@@ -201,15 +193,7 @@ event = stripe.Webhook.construct_event(
 )
 ```
 
-If validation fails, returns `400 Bad Request`. Never process a webhook that fails signature validation.
-
-### Subscription lookup
-
-The handler looks up `FirmSubscription` from `checkout.session.completed` using `metadata.firm_subscription_id` set at checkout creation time.
-
-For renewal/cancellation events (`invoice.paid`, `customer.subscription.*`), lookup is done by `stripe_subscription_id`.
-
-If no subscription is found, returns `200 OK` to prevent Stripe from retrying indefinitely.
+Returns `400` if validation fails. Never process a webhook that fails signature validation.
 
 ### Dashboard configuration
 
@@ -219,33 +203,77 @@ Register the webhook in the Stripe dashboard pointing to:
 https://api.suafince.com.br/api/webhooks/stripe/
 ```
 
-Select events: `checkout.session.completed`, `invoice.paid`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the generated signing secret (`whsec_*`) into `STRIPE_WEBHOOK_SECRET` on Railway and in `.env` locally.
+Events to subscribe: `checkout.session.completed`, `invoice.paid`, `customer.subscription.updated`, `customer.subscription.deleted`.
+
+Copy the generated signing secret (`whsec_*`) into `STRIPE_WEBHOOK_SECRET`.
 
 ---
 
-## 6. Billing Status — Trial, Pagamento e Bloqueio
+## 6. Cancel Subscription
 
-O campo `billing` está disponível em:
+```http
+POST /api/auth/billing/cancel/
+Authorization: Bearer <JWT>
+Content-Type: application/json
+```
+
+**Request:**
+
+```json
+{
+  "reason": "preco",
+  "feedback": "The price is too high for small offices."
+}
+```
+
+Both fields are optional. `reason` is a short slug (e.g. `preco`, `funcionalidades`, `outro`). `feedback` is free text.
+
+**Response `200`:**
+
+```json
+{ "detail": "Assinatura cancelada ao fim do período." }
+```
+
+**Errors:**
+
+- `403` — subscription is not `ACTIVE`
+- `400` — no `stripe_subscription_id` on record (contact support)
+
+### What the backend does
+
+1. Validates `status == ACTIVE` and `stripe_subscription_id` is present.
+2. Calls `stripe.Subscription.modify(id, cancel_at_period_end=True)`.
+3. Saves `cancel_reason`, `cancel_feedback`, `cancelled_at` on `FirmSubscription`.
+4. Does **not** change `status` to `CANCELLED` immediately — access continues until `current_period_end`.
+5. The `customer.subscription.deleted` webhook fires when the period ends and sets `CANCELLED` then.
+
+> The `customer.subscription.updated` webhook will also fire with `cancel_at_period_end=true`. If `cancelled_at` is somehow not set (e.g. cancellation originated from Stripe dashboard), the webhook handler fills it in automatically.
+
+---
+
+## 7. Billing Object — Full Reference
+
+Available on:
 
 ```http
 GET /api/auth/laywer-profile/
-Authorization: Bearer <JWT token>
+Authorization: Bearer <JWT>
 ```
 
-### Campos do objeto `billing`
+### Fields
 
-| Campo | Tipo | Descrição |
+| Field | Type | Description |
 |---|---|---|
 | `status` | string | `TRIAL`, `PENDING`, `ACTIVE`, `CANCELLED`, `EXPIRED` |
-| `is_premium_active` | boolean | `true` se o usuário tem acesso (trial ativo OU assinatura ativa) |
-| `is_on_trial` | boolean | `true` se está no período de trial e o trial ainda não venceu |
-| `trial_ends_at` | string \| null | Data de vencimento do trial (`"dd/MM/yyyy"`) |
-| `next_renewal` | string \| null | Data de renovação da assinatura paga (`"dd/MM/yyyy"`) |
-| `plan_details` | object \| null | Dados do plano contratado; `null` durante o trial |
+| `is_premium_active` | boolean | `true` if user has active access (trial OR active subscription) |
+| `is_on_trial` | boolean | `true` if currently in trial period and trial has not expired |
+| `trial_ends_at` | string \| null | Trial expiry date (`"dd/MM/yyyy"`) |
+| `next_renewal` | string \| null | Next billing date (`"dd/MM/yyyy"`); null during trial |
+| `plan_details` | object \| null | Current plan details; null during trial |
 
-### Cenários e respostas
+### Scenarios
 
-**Trial ativo (primeiros 7 dias, sem cartão)**
+**Active trial (first 7 days, no card):**
 ```json
 {
   "billing": {
@@ -259,7 +287,7 @@ Authorization: Bearer <JWT token>
 }
 ```
 
-**Trial vencido sem assinatura**
+**Expired trial, no subscription:**
 ```json
 {
   "billing": {
@@ -273,7 +301,7 @@ Authorization: Bearer <JWT token>
 }
 ```
 
-**Assinatura ativa (pós-pagamento)**
+**Active subscription:**
 ```json
 {
   "billing": {
@@ -292,40 +320,35 @@ Authorization: Bearer <JWT token>
 }
 ```
 
-### Lógica de acesso recomendada para o frontend
+### Access control logic (frontend)
 
 ```ts
 const { is_premium_active, is_on_trial, trial_ends_at, status } = billing;
 
 if (is_premium_active) {
-  // libera acesso — pode ser trial ou assinatura ativa
+  // grant access — either trial or active subscription
   if (is_on_trial) {
-    // mostrar banner: "Seu trial termina em {trial_ends_at}"
+    // show banner: "Your trial ends on {trial_ends_at}"
   }
 } else {
-  // bloquear acesso e redirecionar para tela de planos
+  // block access and redirect to plans page
   if (status === 'TRIAL') {
-    // "Seu período gratuito encerrou. Escolha um plano para continuar."
+    // "Your free trial has ended. Choose a plan to continue."
   } else if (status === 'CANCELLED' || status === 'EXPIRED') {
-    // "Sua assinatura foi cancelada."
+    // "Your subscription has been cancelled."
   }
 }
 ```
 
-> **Nunca libere acesso baseado apenas no `status`**. Use sempre `is_premium_active`, pois ele consolida trial + assinatura + validade de período.
+> **Never gate access on `status` alone.** Always use `is_premium_active` — it consolidates trial + subscription + period validity into a single boolean.
 
-### Polling após pagamento
+### Polling after payment
 
-Após o redirecionamento de `/app/payment/success`, faça polling até `status === 'ACTIVE'`:
-
-```ts
-// O webhook da Stripe pode demorar alguns segundos para chegar
-poll until billing.status === 'ACTIVE'
-```
+After redirect to `/app/payment/success`, poll until `status === 'ACTIVE'`. The webhook may take a few seconds to arrive.
 
 ---
 
-## 7. Full Sequence Diagram
+## 8. Full Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -333,87 +356,83 @@ sequenceDiagram
   participant BE as Backend (Django)
   participant ST as Stripe
 
-  Note over FE,BE: Cadastro e trial automático
-  FE->>BE: POST /api/auth/firms/ { name, type }
-  BE-->>BE: Firm criada + FirmSubscription(status=TRIAL, trial_ends_at=now+7d)
+  Note over FE,BE: Firm creation and automatic trial
+  FE->>BE: POST /api/firms/ { name, type }
+  BE-->>BE: Firm created + FirmSubscription(status=TRIAL, trial_ends_at=now+7d)
   BE-->>FE: { id, name, type }
 
   FE->>BE: GET /api/auth/laywer-profile/
-  BE-->>FE: { billing: { status: "TRIAL", is_premium_active: true, is_on_trial: true, trial_ends_at: "..." } }
+  BE-->>FE: { billing: { status: "TRIAL", is_premium_active: true } }
 
-  Note over FE,BE: Usuário decide assinar
+  Note over FE,BE: User decides to subscribe
   FE->>BE: GET /api/auth/subscription/planos/
   BE->>ST: GET /v1/prices?expand[]=data.product
   ST-->>BE: { data: [...prices] }
-  BE-->>FE: { data: [...plans] }
+  BE-->>FE: { data: [...plans], stripe_publishable_key }
 
   FE->>BE: POST /api/auth/subscription/checkout/ { plan_id }
   BE->>ST: POST /v1/checkout/sessions (mode=subscription)
   ST-->>BE: { id, url }
-  BE-->>FE: { checkout_url, subscription_id, status: TRIAL }
+  BE-->>FE: { checkout_url, subscription_id, status: "TRIAL" }
   FE->>ST: Redirect to checkout_url
 
   ST-->>FE: Redirect to /app/payment/success?session_id=...
 
   ST->>BE: POST /api/webhooks/stripe/ (checkout.session.completed)
-  BE-->>BE: Validate Stripe-Signature header
+  BE-->>BE: Validate Stripe-Signature
   BE-->>BE: FirmSubscription.status → ACTIVE
-  BE-->>BE: Persists stripe_subscription_id, stripe_customer_id
 
   loop Poll until ACTIVE
     FE->>BE: GET /api/auth/laywer-profile/
     BE-->>FE: { billing: { status: "ACTIVE", is_premium_active: true } }
   end
 
-  Note over ST,BE: Recurring billing events
-
+  Note over ST,BE: Recurring billing
   ST->>BE: POST /api/webhooks/stripe/ (invoice.paid)
   BE-->>BE: FirmSubscription.status → ACTIVE, updates current_period_end
 
+  Note over FE,BE: User cancels
+  FE->>BE: POST /api/auth/billing/cancel/ { reason, feedback }
+  BE->>ST: stripe.Subscription.modify(cancel_at_period_end=True)
+  BE-->>BE: Save cancelled_at, cancel_reason, cancel_feedback
+  BE-->>FE: { detail: "Assinatura cancelada ao fim do período." }
+
+  Note over ST,BE: Period ends
   ST->>BE: POST /api/webhooks/stripe/ (customer.subscription.deleted)
   BE-->>BE: FirmSubscription.status → CANCELLED
 ```
 
 ---
 
-## 8. Environment Variables
+## 9. Environment Variables
 
 | Variable | Purpose |
 |---|---|
-| `STRIPE_SECRET_KEY` | Secret key for all server-side Stripe API calls (`sk_live_*` or `sk_test_*`) — never exposed to the client |
-| `STRIPE_PUBLISHABLE_KEY` | Publishable key returned to the frontend for Stripe.js usage (`pk_live_*` or `pk_test_*`) — safe to expose |
-| `STRIPE_WEBHOOK_SECRET` | Signing secret for validating inbound webhooks (`whsec_*`) |
-| `FRONTEND_URL` | Base URL used to build `success_url` and `cancel_url` |
-
-### Where each key is used
-
-- **`STRIPE_SECRET_KEY`** — used exclusively in `StripeService.__init__()` to set `stripe.api_key`. Never returned in any response.
-- **`STRIPE_PUBLISHABLE_KEY`** — returned in the `GET /api/auth/subscription/planos/` response as `stripe_publishable_key`. The frontend uses this to initialize `Stripe(publishable_key)` when building custom payment forms with Stripe Elements (optional for the hosted Checkout flow).
-
-**Response shape with the publishable key:**
-
-```json
-{
-  "data": [...plans],
-  "stripe_publishable_key": "pk_live_..."
-}
-```
+| `STRIPE_SECRET_KEY` | Server-side Stripe API key (`sk_live_*` or `sk_test_*`) — never exposed to client |
+| `STRIPE_PUBLISHABLE_KEY` | Publishable key returned to frontend (`pk_live_*` or `pk_test_*`) |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret for inbound webhook validation (`whsec_*`) |
+| `FRONTEND_URL` | Base URL for building `success_url` and `cancel_url` |
 
 ---
 
-## 9. Model Fields Added
+## 10. Model Fields
 
-| Model | Field | Type | Purpose |
-|---|---|---|---|
-| `Plan` | `stripe_price_id` | `CharField` (nullable) | Stripe Price ID (`price_*`) |
-| `FirmSubscription` | `stripe_subscription_id` | `CharField` (nullable) | Stripe Subscription ID (`sub_*`) — set by webhook |
-| `FirmSubscription` | `stripe_customer_id` | `CharField` (nullable) | Stripe Customer ID (`cus_*`) — set by webhook |
+### `Plan`
 
-AbacatePay fields (`abacatepay_product_id`, `abacatepay_billing_id`) remain in the models for future use.
+| Field | Type | Notes |
+|---|---|---|
+| `stripe_price_id` | `CharField` (nullable, unique) | Stripe Price ID (`price_*`) |
+| `cycle` | `CharField` | `WEEKLY`, `MONTHLY`, `QUARTERLY`, `SEMIANNUALLY`, `ANNUALLY` |
 
----
+### `FirmSubscription`
 
-## 10. Known Gaps
-
-- Upgrade and cancel flows in `src/users/views/billing.py` still return `501 Not Implemented`.
-- `stripe_customer_id` is stored per-subscription, not per-firm. If a firm cancels and resubscribes, a new Stripe customer is created.
+| Field | Type | Notes |
+|---|---|---|
+| `stripe_subscription_id` | `CharField` (nullable, unique) | Set by webhook after checkout |
+| `stripe_customer_id` | `CharField` (nullable) | Set by webhook after checkout |
+| `status` | `CharField` | `TRIAL`, `PENDING`, `ACTIVE`, `EXPIRED`, `CANCELLED` |
+| `trial_ends_at` | `DateTimeField` (nullable) | Set at firm creation |
+| `current_period_end` | `DateTimeField` (nullable) | Updated by `invoice.paid` webhook |
+| `cancel_reason` | `CharField` (nullable) | Short slug from cancellation request |
+| `cancel_feedback` | `TextField` (nullable) | Free text from cancellation request |
+| `cancelled_at` | `DateTimeField` (nullable) | When cancellation was requested |

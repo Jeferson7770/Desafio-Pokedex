@@ -1,27 +1,36 @@
 # Expenses API Guide
 
-This document explains how to use the current expenses endpoints.
+This document explains how to use the expenses endpoints.
 
 ## Base URL and Authentication
 
-- Base: `/api/expenses/`
-- All endpoints require JWT.
+```text
+/api/expenses/
+```
+
+All endpoints require JWT.
 
 ```http
-Authorization: Bearer <token>
+Authorization: Bearer <JWT>
 Content-Type: application/json
 ```
 
-## Endpoints Overview
+---
 
-1. `GET /api/expenses/`
-2. `POST /api/expenses/`
-3. `GET /api/expenses/{id}/`
-4. `PATCH /api/expenses/{id}/`
-5. `DELETE /api/expenses/{id}/`
-6. `POST /api/expenses/import/`
-7. `POST /api/expenses/defer-installment/{installment_id}/`
-8. `GET /api/expenses/yearly-summary/`
+## Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/expenses/` | List expenses |
+| POST | `/api/expenses/` | Create expense |
+| GET | `/api/expenses/{id}/` | Retrieve expense |
+| PATCH | `/api/expenses/{id}/` | Update expense |
+| DELETE | `/api/expenses/{id}/` | Delete expense |
+| POST | `/api/expenses/import/` | Bulk import |
+| POST | `/api/expenses/defer-installment/{installment_id}/` | Defer installment |
+| GET | `/api/expenses/yearly-summary/` | Yearly summary |
+
+---
 
 ## Data Structures
 
@@ -35,9 +44,13 @@ Content-Type: application/json
   "description": "Annual contract",
   "amount": "4800.00",
   "due_date": "2026-10-10",
-  "frequency": "ONE_TIME",
-  "category": "ESTRUTURA",
-  "priority": "LEGAL",
+  "frequency": "MONTHLY",
+  "category": "ESTRUTURA_E_OPERACAO",
+  "subcategory": "Aluguel",
+  "category_display": "Estrutura e Operação",
+  "priority": "ALTA",
+  "priority_display": "Alta",
+  "is_reembolsavel": false,
   "is_paid": false,
   "paid_at": null,
   "is_active": true,
@@ -66,122 +79,163 @@ Content-Type: application/json
 }
 ```
 
-## Accepted Enums
+`status` values: `PAGO`, `VENCIDO`, `A_VENCER`.
+
+---
+
+## Enums
 
 ### `frequency`
 
-- `ONE_TIME`
-- `MONTHLY`
-- `ANNUAL`
+| Value | Description |
+|---|---|
+| `ONE_TIME` | One-time expense |
+| `MONTHLY` | Recurring monthly |
+| `ANNUAL` | Recurring annually |
 
 ### `category`
 
-- `PESSOAL_E_REMUNERACAO`
-- `CUSTAS_PROCESSUAIS_E_JUDICIAIS`
-- `FINANCEIRA`
-- `CAPACITACAO_E_DESENVOLVIMENTO`
-- `FISCAL_E_OBRIGACOES_LEGAIS`
-- `ESTRUTURA_E_OPERACAO`
-- `TECNOLOGIA_E_ASSINATURA`
-- `MARKETING_E_AQUISICAO`
-- `MOBILIDADE_E_DESLOCAMENTO`
-- `INVESTIMENTOS_NO_ESCRITORIO`
-- `A_CLASSIFICAR`
-- Legados aceitos por compatibilidade:
-- `ESTRUTURA`
-- `PESSOAS`
-- `IMPOSTOS`
-- `OPERACIONAL`
+| Value | Display |
+|---|---|
+| `PESSOAL_E_REMUNERACAO` | Pessoal e Remuneração |
+| `FISCAL_E_OBRIGACOES_LEGAIS` | Fiscal e Obrigações Legais |
+| `CUSTAS_PROCESSUAIS_E_JUDICIAIS` | Custas Processuais e Judiciais |
+| `ESTRUTURA_E_OPERACAO` | Estrutura e Operação |
+| `TECNOLOGIA_E_ASSINATURA` | Tecnologia e Assinaturas |
+| `FINANCEIRA` | Financeiro |
+| `MARKETING_E_AQUISICAO` | Marketing e Aquisição |
+| `MOBILIDADE_E_DESLOCAMENTO` | Mobilidade e Deslocamento |
+| `INVESTIMENTOS_NO_ESCRITORIO` | Investimentos no Escritório |
+| `CAPACITACAO_E_DESENVOLVIMENTO` | Capacitação e Desenvolvimento |
+| `A_CLASSIFICAR` | A Classificar |
+
+> Expenses created with `A_CLASSIFICAR` appear in the priority engine's `pendentes_categorizacao` list and do not participate in the payment ranking until recategorized.
 
 ### `priority`
 
-- `LEGAL`
-- `OPERACIONAL`
-- `OPCIONAL`
+| Value | Display | Default categories |
+|---|---|---|
+| `CRITICA` | Crítica | `PESSOAL_E_REMUNERACAO`, `FISCAL_E_OBRIGACOES_LEGAIS` |
+| `ESPECIAL` | Especial | `CUSTAS_PROCESSUAIS_E_JUDICIAIS` |
+| `ALTA` | Alta | `ESTRUTURA_E_OPERACAO` |
+| `MEDIA_ALTA` | Média-Alta | `TECNOLOGIA_E_ASSINATURA` |
+| `MEDIA` | Média | `FINANCEIRA`, `MARKETING_E_AQUISICAO` |
+| `MEDIA_BAIXA` | Média-Baixa | `MOBILIDADE_E_DESLOCAMENTO` |
+| `BAIXA` | Baixa | `INVESTIMENTOS_NO_ESCRITORIO`, `CAPACITACAO_E_DESENVOLVIMENTO` |
+| `INDEFINIDA` | Indefinida | `A_CLASSIFICAR` — excluded from priority ranking |
 
-## 1) List expenses
+### `subcategory`
+
+Free-text field (max 100 chars). Used by the priority engine to look up specific consequence warnings. Example values: `"Pró-labore"`, `"DAS"`, `"Aluguel"`, `"Software jurídico"`.
+
+### `is_reembolsavel`
+
+Boolean. Applicable to `CUSTAS_PROCESSUAIS_E_JUDICIAIS` expenses where the lawyer advances costs on behalf of a client and expects reimbursement. When `true`, the expense is tracked as a receivable from the client and does not impact net firm result — only cash flow temporarily.
+
+---
+
+## 1. List Expenses
 
 ```http
 GET /api/expenses/
 ```
 
-Optional query params:
-
-- `year`
-- `month`
+Optional query params: `year`, `month`.
 
 Behavior:
+1. Always scoped to the authenticated user's firm.
+2. Only returns `is_active=true` expenses.
+3. If both `year` and `month` are provided, response is unpaginated.
+4. Without period filters, standard paginated ModelViewSet behavior applies.
 
-1. Always filters by authenticated user's firm.
-2. Always returns only `is_active=true`.
-3. If `year` and `month` are both sent, response is unpaginated list.
-4. Without period filters, default ModelViewSet behavior applies.
+---
 
-## 2) Create expense
+## 2. Create Expense
 
 ```http
 POST /api/expenses/
 ```
 
 Rules:
+1. `firm` is set automatically by the backend.
+2. If `is_installment=true`, installments are generated automatically from `amount` and `total_installments`.
+3. Rounding residue is applied to the last installment.
+4. Installment due dates advance by one month from `due_date`.
+5. If `category` is omitted, defaults to `A_CLASSIFICAR`.
+6. If `priority` is omitted, defaults to `INDEFINIDA`.
 
-1. `firm` is set by backend.
-2. If `is_installment=true`, installments are generated automatically.
-3. Installments are derived from `amount` and `total_installments`.
-4. Rounding residue is applied to the last installment.
-5. Installment due dates move monthly from `due_date`.
+---
 
-## 3) Retrieve expense by ID
+## 3. Retrieve Expense
 
 ```http
 GET /api/expenses/{id}/
 ```
 
-Returns full expense with embedded installments.
+Returns the full expense with embedded installments.
 
-## 4) Update expense
+---
+
+## 4. Update Expense
 
 ```http
 PATCH /api/expenses/{id}/
 ```
 
 Important behavior:
+- Setting `is_paid=true` sets `paid_at` on the header record and all installments.
+- Setting `is_paid=false` clears `paid_at` on the header record and all installments.
 
-- Setting `is_paid=true` updates `paid_at` on header and all installments.
-- Setting `is_paid=false` clears `paid_at` on header and all installments.
+---
 
-## 5) Delete expense
+## 5. Delete Expense
 
 ```http
 DELETE /api/expenses/{id}/
 ```
 
-Removes expense and cascades related installments.
+Deletes the expense and all related installments (cascade).
 
-## 6) Bulk import
+---
+
+## 6. Bulk Import
 
 ```http
 POST /api/expenses/import/
+Content-Type: application/json
 ```
 
-Rules implemented:
-
-1. Payload must be an array.
+Rules:
+1. Payload must be a JSON array.
 2. Maximum 500 items per request.
-3. Partial processing: one invalid item does not abort entire batch.
-4. Response always includes `created` and `errors`.
-5. `errors[index]` is 0-based.
-6. Backend forces `is_active=true`.
-7. If `category` is `null`, backend normalizes to `OPERACIONAL` (legado).
-8. If `installment_value` is sent, backend validates consistency with `amount` and `total_installments`.
+3. Partial processing: one invalid item does not abort the entire batch.
+4. Response always includes `created` (list) and `errors` (list).
+5. `errors[].index` is 0-based.
+6. Backend forces `is_active=true` on all imported items.
+7. If `category` is `null`, backend defaults to `A_CLASSIFICAR`.
+8. If `installment_value` is provided, backend validates: `installment_value × total_installments === amount`.
 
-## 7) Defer installment
+**Response:**
+
+```json
+{
+  "created": [ /* list of created expense objects */ ],
+  "errors": [
+    { "index": 2, "detail": "amount: This field is required." }
+  ]
+}
+```
+
+---
+
+## 7. Defer Installment
 
 ```http
 POST /api/expenses/defer-installment/{installment_id}/
+Content-Type: application/json
 ```
 
-Example payload:
+**Request:**
 
 ```json
 {
@@ -191,23 +245,28 @@ Example payload:
 ```
 
 Behavior:
+1. Creates a deferral record linked to the installment.
+2. Updates `installment.due_date` to `new_date`.
+3. Adds `penalty_amount` to the installment amount when provided.
 
-1. Creates deferral entry.
-2. Updates installment `due_date`.
-3. Adds penalty to installment amount when provided.
+---
 
-## 8) Yearly summary
+## 8. Yearly Summary
 
 ```http
 GET /api/expenses/yearly-summary/
 ```
 
-Returns grouped summary and dashboard section per period, plus total bank balance.
+Returns a grouped summary and dashboard data per period, plus total bank balance.
+
+---
 
 ## Frontend Checklist
 
 1. Always send JWT.
-2. For import, send array and handle `created` plus `errors`.
-3. For installments, keep `amount`, `total_installments`, `installment_value` consistent.
+2. Set `subcategory` on expenses to get specific consequence warnings in the priority engine (`aviso` field).
+3. For installments: keep `amount`, `total_installments`, and `installment_value` consistent (`amount = installment_value × total_installments`).
 4. For filtered list, send `year` and `month` together.
-5. Paid/unpaid state affects all installments.
+5. Marking `is_paid` affects all installments simultaneously.
+6. Set `is_reembolsavel=true` for `CUSTAS_PROCESSUAIS_E_JUDICIAIS` expenses where the client will reimburse the firm.
+7. Expenses with `A_CLASSIFICAR` / `INDEFINIDA` will not appear in the payment priority ranking until categorized.

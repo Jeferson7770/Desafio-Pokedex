@@ -1,172 +1,282 @@
 # Users API Guide
 
-This document explains authentication, lawyer profile, billing, and notification settings endpoints.
+This document covers authentication, lawyer profile, billing, and notification settings endpoints.
 
-## 1. Base URLs
+## Base URLs
+
+All users endpoints are under `/api/auth/`:
 
 ```text
-/api/users/register/
-/api/users/login/
-/api/users/logout/
-/api/users/laywer-profile/
-/api/users/billing/subscription/
-/api/users/notifications/settings/
+POST /api/auth/register/
+POST /api/auth/login/
+POST /api/auth/logout/
+GET|POST|PATCH|PUT|DELETE /api/auth/laywer-profile/
+POST /api/auth/laywer-profile/change-password/
+POST /api/auth/laywer-profile/disconnect-device/{device_pk}/
+POST /api/auth/laywer-profile/disconnect-all-devices/
+POST /api/auth/laywer-profile/delete-account/
+GET  /api/auth/billing/subscription/
+POST /api/auth/billing/cancel/
+GET|PATCH /api/auth/notifications/settings/
 ```
 
-## 2. Register
+---
+
+## 1. Register
 
 ```http
-POST /api/users/register/
+POST /api/auth/register/
 ```
 
 No authentication required.
 
-Backend creates `User` and `LawyerProfile` in one atomic transaction.
+Backend creates `User` and `LawyerProfile` in one atomic transaction. It also:
+- Auto-creates a `Firm` if firm details are provided.
+- Creates a `FirmSubscription` with `status=TRIAL` and `trial_ends_at=now+7days`.
+- Sends a welcome email in a background thread (via Resend).
 
-## 3. Login
+---
 
-```http
-POST /api/users/login/
-```
-
-No authentication required.
-
-Returns `access` and `refresh` tokens.
-
-## 4. Logout
+## 2. Login
 
 ```http
-POST /api/users/logout/
+POST /api/auth/login/
 ```
 
-Requires authentication and invalidates refresh token.
+No authentication required. Returns `access` and `refresh` JWT tokens.
 
-## 5. Lawyer profile
+---
+
+## 3. Logout
+
+```http
+POST /api/auth/logout/
+Authorization: Bearer <JWT>
+```
+
+Invalidates the refresh token.
+
+---
+
+## 4. Google OAuth
+
+### Register with Google
+
+```http
+POST /api/auth/google/register/
+```
+
+Creates a new account using Google identity. Sends welcome email on first registration.
+
+### Login with Google
+
+```http
+POST /api/auth/google/login/
+```
+
+Returns `access` and `refresh` tokens for an existing Google-authenticated account.
+
+---
+
+## 5. Lawyer Profile
 
 ### 5.1 Retrieve profile
 
 ```http
-GET /api/users/laywer-profile/
+GET /api/auth/laywer-profile/
+Authorization: Bearer <JWT>
 ```
 
-Returns full profile including personal data, office profile, billing data, devices, and notification settings.
+Returns the full profile: personal data, firm info, billing status, connected devices, and notification settings.
 
 ### 5.2 Create profile
 
 ```http
-POST /api/users/laywer-profile/
+POST /api/auth/laywer-profile/
+Authorization: Bearer <JWT>
 ```
 
-Used in onboarding. A second profile for same user is not allowed.
+Used during onboarding. A second profile for the same user is not allowed.
 
 ### 5.3 Update profile
 
 ```http
-PATCH /api/users/laywer-profile/
-PUT /api/users/laywer-profile/
+PATCH /api/auth/laywer-profile/
+PUT  /api/auth/laywer-profile/
+Authorization: Bearer <JWT>
 ```
 
-### 5.4 Change password
+### 5.4 Delete profile
 
 ```http
-POST /api/users/laywer-profile/change-password/
+DELETE /api/auth/laywer-profile/
+Authorization: Bearer <JWT>
+```
+
+### 5.5 Change password
+
+```http
+POST /api/auth/laywer-profile/change-password/
+Authorization: Bearer <JWT>
 ```
 
 Behavior:
-
 1. Validates current password.
-2. Updates password.
+2. Updates the password.
 3. Invalidates all active refresh tokens.
 4. Returns new `access` and `refresh` tokens.
 
-### 5.5 Disconnect one device
+### 5.6 Disconnect one device
 
 ```http
-POST /api/users/laywer-profile/disconnect-device/{device_pk}/
+POST /api/auth/laywer-profile/disconnect-device/{device_pk}/
+Authorization: Bearer <JWT>
 ```
 
-### 5.6 Disconnect all devices
+### 5.7 Disconnect all devices
 
 ```http
-POST /api/users/laywer-profile/disconnect-all-devices/
+POST /api/auth/laywer-profile/disconnect-all-devices/
+Authorization: Bearer <JWT>
 ```
 
-### 5.7 Delete account
+### 5.8 Delete account
 
 ```http
-POST /api/users/laywer-profile/delete-account/
+POST /api/auth/laywer-profile/delete-account/
+Authorization: Bearer <JWT>
 ```
 
-Irreversible operation.
+Irreversible. Deletes user and all associated data.
 
-## 6. Tax regimes
+---
 
-- `SIMPLES`
-- `LUCRO_PRESUMIDO`
-- `LUCRO_REAL`
-- `AUTONOMO_PF`
+## 6. Profile Enums
 
-## 7. Profile variables
+### Tax regime (`tax_regime`)
+
+| Value |
+|---|
+| `SIMPLES` |
+| `LUCRO_PRESUMIDO` |
+| `LUCRO_REAL` |
+| `AUTONOMO_PF` |
 
 ### Income variability (`income_variability`)
 
-- `LOW`
-- `MEDIUM`
-- `HIGH`
+| Value |
+|---|
+| `LOW` |
+| `MEDIUM` |
+| `HIGH` |
 
 ### Financial goal (`goal_type`)
 
-- `SURVIVAL`
-- `STABILITY`
-- `GROWTH`
+| Value |
+|---|
+| `SURVIVAL` |
+| `STABILITY` |
+| `GROWTH` |
 
-## 8. Billing
+---
 
-### 8.1 Current subscription
+## 7. Billing
+
+The `billing` object is returned as part of `GET /api/auth/laywer-profile/`.
+
+For the full billing reference — including trial flow, all scenarios, field descriptions, and access control logic — see [stripe-payment.md](stripe-payment.md).
+
+### 7.1 View current subscription
 
 ```http
-GET /api/users/billing/subscription/
+GET /api/auth/billing/subscription/
+Authorization: Bearer <JWT>
 ```
 
-Possible statuses: `ACTIVE`, `CANCELED`, `PAST_DUE`, `TRIALING`.
+Returns the current `FirmSubscription` record.
 
-`is_premium_active` is true for active/trial subscriptions and also for canceled subscriptions still inside paid period.
+Possible `status` values: `TRIAL`, `PENDING`, `ACTIVE`, `CANCELLED`, `EXPIRED`.
 
-### 8.2 Request upgrade
+### 7.2 Cancel subscription
 
 ```http
-POST /api/users/billing/subscription/upgrade/
+POST /api/auth/billing/cancel/
+Authorization: Bearer <JWT>
+Content-Type: application/json
+```
+
+**Request:**
+
+```json
+{
+  "reason": "preco",
+  "feedback": "The price is too high for small offices."
+}
+```
+
+Both fields are optional.
+
+**Response `200`:**
+
+```json
+{ "detail": "Assinatura cancelada ao fim do período." }
+```
+
+Calls Stripe with `cancel_at_period_end=True`. Access continues until `current_period_end`. Status transitions to `CANCELLED` when the `customer.subscription.deleted` webhook arrives after the period ends.
+
+**Errors:**
+- `403` — subscription is not `ACTIVE`
+- `400` — no `stripe_subscription_id` on record
+
+### 7.3 Request upgrade (placeholder)
+
+```http
+POST /api/auth/billing/subscription/upgrade/
+Authorization: Bearer <JWT>
 ```
 
 Currently returns `501` (gateway integration pending).
 
-### 8.3 Request cancellation
+---
 
-```http
-POST /api/users/billing/subscription/cancel/
+## 8. Password Reset
+
+Three-step flow: request code → verify code → set new password.
+
+For the full spec see [password-reset.md](password-reset.md).
+
+```text
+POST /api/auth/password/forgot/
+POST /api/auth/password/verify-code/
+POST /api/auth/password/reset/
 ```
 
-Currently returns `501` (gateway integration pending).
+---
 
-## 9. Notification settings
+## 9. Notification Settings
 
-### 9.1 Retrieve settings
-
-```http
-GET /api/users/notifications/settings/
-```
-
-### 9.2 Update settings
+### Retrieve
 
 ```http
-PATCH /api/users/notifications/settings/
+GET /api/auth/notifications/settings/
+Authorization: Bearer <JWT>
 ```
+
+### Update
+
+```http
+PATCH /api/auth/notifications/settings/
+Authorization: Bearer <JWT>
+```
+
+---
 
 ## 10. Frontend Checklist
 
-1. Startup flow: register -> login -> store tokens -> create profile (onboarding).
-2. Refresh `access` using SimpleJWT refresh endpoint (`/api/token/refresh/`).
-3. After password change, replace old tokens immediately.
-4. `has_bank_connected` indicates Open Finance connection.
-5. `onboarding_completed` indicates onboarding completion state.
-6. Upgrade/cancel billing endpoints currently return `501`.
+1. Startup flow: `register` → `login` → store tokens → `POST /api/auth/laywer-profile/` (onboarding).
+2. Use SimpleJWT refresh endpoint (`/api/token/refresh/`) to renew the `access` token.
+3. After password change, replace stored tokens immediately with the new ones from the response.
+4. Gate app access on `billing.is_premium_active`, not on `billing.status` alone.
+5. Show trial banner when `billing.is_on_trial === true`, with `billing.trial_ends_at` as the expiry date.
+6. `has_bank_connected` indicates Open Finance connection status.
+7. `onboarding_completed` indicates whether the onboarding wizard has been finished.

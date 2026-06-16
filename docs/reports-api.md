@@ -85,15 +85,19 @@ Response codes:
 - `201 Created` when inserted
 - `200 OK` when updated
 
-## 6. Expense categories
+## 6. Expense category mapping
 
-- `expenses_fixed`
-- `expenses_variable`
-- `expenses_eventual`
-- `expenses_payroll`
-- `expenses_taxes`
-- `expenses_structure`
-- `expenses_late_interest`
+The real-time `GET /api/reports/` endpoint computes payroll and tax breakdowns from expense categories:
+
+| Report bucket | Expense categories included |
+|---|---|
+| `payroll` | `PESSOAL_E_REMUNERACAO` |
+| `taxes` | `FISCAL_E_OBRIGACOES_LEGAIS`, `FINANCEIRA` |
+| `structure` | All other categories |
+
+The `variable` bucket captures `CUSTAS_PROCESSUAIS_E_JUDICIAIS` and `MOBILIDADE_E_DESLOCAMENTO`. The `fixed` bucket captures `MONTHLY` frequency expenses in all other categories. Everything else is `eventual`.
+
+> `is_fully_categorized` is `false` when any paid expense in the period still has `category = A_CLASSIFICAR`. The priority engine also uses this flag to warn users about uncategorized expenses.
 
 ## 7. Frontend Checklist
 

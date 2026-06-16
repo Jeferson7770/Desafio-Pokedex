@@ -1,49 +1,49 @@
-# Recuperação de Senha — Spec de Implementação
+# Password Reset — Implementation Spec
 
-Fluxo completo de recuperação de senha via email com código de 6 dígitos. O usuário não precisa clicar em link — digita o código diretamente no app.
+Complete password recovery flow via email with a 6-digit code. The user does not click a link — they type the code directly in the app.
 
 ---
 
-## 1. Fluxo do Usuário
+## 1. User Flow
 
 ```
-[Tela de login]
+[Login screen]
       │
       ▼
-"Esqueci minha senha"
+"Forgot my password"
       │
       ▼
-[1] Informa o email
+[1] Enter email
       │
       ▼  POST /api/auth/password/forgot/
       │
       ▼
-Recebe email com código de 6 dígitos (expira em 15 min)
+Receives email with 6-digit code (expires in 15 min)
       │
       ▼
-[2] Digita o código no app
+[2] Enter code in app
       │
       ▼  POST /api/auth/password/verify-code/
       │
       ▼
-Recebe reset_token temporário
+Receives temporary reset_token
       │
       ▼
-[3] Define nova senha
+[3] Set new password
       │
       ▼  POST /api/auth/password/reset/
       │
       ▼
-Senha atualizada → redirecionado para login
+Password updated → redirected to login
 ```
 
 ---
 
-## 2. Modelo de Dados
+## 2. Data Model
 
 ### `PasswordResetCode`
 
-Novo model em `src/users/models/password_reset.py`:
+New model in `src/users/models/password_reset.py`:
 
 ```python
 import uuid
@@ -57,8 +57,8 @@ MAX_ATTEMPTS = 5
 
 class PasswordResetCode(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_reset_codes")
-    code_hash = models.CharField(max_length=64)           # HMAC-SHA256 do código
-    reset_token = models.UUIDField(null=True, blank=True) # preenchido após verificação bem-sucedida
+    code_hash = models.CharField(max_length=64)           # HMAC-SHA256 of the code
+    reset_token = models.UUIDField(null=True, blank=True) # filled after successful verification
     is_verified = models.BooleanField(default=False)
     is_used = models.BooleanField(default=False)
     attempts = models.PositiveSmallIntegerField(default=0)
@@ -75,11 +75,11 @@ class PasswordResetCode(models.Model):
         return not self.is_used and not self.is_expired() and self.attempts < MAX_ATTEMPTS
 ```
 
-**Por que HMAC no código?**
-O código de 6 dígitos é guardado como `HMAC-SHA256(code, SECRET_KEY)` — se o banco vazar, ninguém consegue os códigos ativos.
+**Why HMAC for the code?**
+The 6-digit code is stored as `HMAC-SHA256(code, SECRET_KEY)` — if the database leaks, active codes cannot be recovered.
 
-**Por que `reset_token` separado?**
-Após verificar o código, o frontend precisa de um token para a etapa 3. Um UUID garante que o código de 6 dígitos não fica circulando além do necessário.
+**Why a separate `reset_token`?**
+After verifying the code, the frontend needs a token for step 3. A UUID ensures the 6-digit code does not circulate beyond what is necessary.
 
 ---
 
@@ -87,37 +87,37 @@ Após verificar o código, o frontend precisa de um token para a etapa 3. Um UUI
 
 ### 3.1 `POST /api/auth/password/forgot/`
 
-Solicita o envio do código de recuperação.
+Requests delivery of the recovery code.
 
-**Permissão:** AllowAny  
-**Rate limit:** 3 requisições por IP/minuto + 3 por email/hora
+**Permission:** AllowAny  
+**Rate limit:** 3 requests per IP/minute + 3 per email/hour
 
 **Request:**
 ```json
-{ "email": "advogado@escritorio.com.br" }
+{ "email": "lawyer@office.com" }
 ```
 
-**Lógica interna:**
-1. Busca `User` pelo email.
-2. Se não encontrar → retorna `200` com resposta genérica (não revela se email existe).
-3. Se usuário tem senha inutilizável (cadastro via Google) → retorna `200` com instrução específica.
-4. Invalida códigos anteriores não usados do mesmo usuário (marca como `is_used=True`).
-5. Gera código numérico aleatório de 6 dígitos (`secrets.randbelow`).
-6. Salva `PasswordResetCode` com `code_hash = HMAC(code)` e `expires_at = now + 15min`.
-7. Dispara `EmailService().enviar_codigo_reset(email, nome, code)` em background thread.
-8. Rastreia `senha_reset_solicitado` no PostHog.
+**Internal logic:**
+1. Looks up `User` by email.
+2. If not found → returns `200` with a generic response (does not reveal whether the email exists).
+3. If user registered via Google (no usable password) → returns `200` with specific instructions.
+4. Invalidates all previous unused codes for the same user (marks `is_used=True`).
+5. Generates a random 6-digit numeric code (`secrets.randbelow`).
+6. Saves `PasswordResetCode` with `code_hash = HMAC(code)` and `expires_at = now + 15min`.
+7. Sends `EmailService().enviar_codigo_reset(email, name, code)` in a background thread.
+8. Tracks `senha_reset_solicitado` in PostHog.
 
-**Response `200` (todos os casos — nunca revela se email existe):**
+**Response `200` (all cases — never reveals whether email exists):**
 ```json
 {
-  "detail": "Se este email estiver cadastrado, você receberá um código em instantes."
+  "detail": "If this email is registered, you will receive a code shortly."
 }
 ```
 
-**Caso especial — usuário do Google (response `200`):**
+**Special case — Google account (response `200`):**
 ```json
 {
-  "detail": "Esta conta foi criada com Google. Acesse usando o botão 'Entrar com Google'.",
+  "detail": "This account was created with Google. Sign in using the 'Continue with Google' button.",
   "method": "google"
 }
 ```
@@ -126,27 +126,27 @@ Solicita o envio do código de recuperação.
 
 ### 3.2 `POST /api/auth/password/verify-code/`
 
-Valida o código de 6 dígitos e retorna um token para a etapa de redefinição.
+Validates the 6-digit code and returns a token for the password reset step.
 
-**Permissão:** AllowAny  
-**Rate limit:** 10 requisições por IP/minuto (a proteção principal é `MAX_ATTEMPTS` no DB)
+**Permission:** AllowAny  
+**Rate limit:** 10 requests per IP/minute (primary protection is `MAX_ATTEMPTS` in the DB)
 
 **Request:**
 ```json
 {
-  "email": "advogado@escritorio.com.br",
+  "email": "lawyer@office.com",
   "code": "482917"
 }
 ```
 
-**Lógica interna:**
-1. Busca o `PasswordResetCode` mais recente para o email que seja válido (`is_used=False`, não expirado, `attempts < MAX_ATTEMPTS`).
-2. Se não encontrar registro → `400`.
-3. Verifica `HMAC(code_informado) == code_hash`.
-4. Se inválido: incrementa `attempts`, salva. Se `attempts >= MAX_ATTEMPTS`, retorna erro de bloqueio.
-5. Se válido: gera `reset_token = uuid4()`, salva no registro com `is_verified=True`.
-6. Rastreia `senha_codigo_verificado` no PostHog.
-7. Retorna o `reset_token`.
+**Internal logic:**
+1. Finds the most recent valid `PasswordResetCode` for the email (`is_used=False`, not expired, `attempts < MAX_ATTEMPTS`).
+2. If not found → `400`.
+3. Computes `HMAC(provided_code)` and compares to `code_hash`.
+4. If invalid: increments `attempts`, saves. If `attempts >= MAX_ATTEMPTS`, returns lockout error.
+5. If valid: generates `reset_token = uuid4()`, saves with `is_verified=True`.
+6. Tracks `senha_codigo_verificado` in PostHog.
+7. Returns `reset_token`.
 
 **Response `200`:**
 ```json
@@ -157,78 +157,77 @@ Valida o código de 6 dígitos e retorna um token para a etapa de redefinição.
 
 **Errors:**
 ```json
-// código inválido (ainda tem tentativas)
-{ "detail": "Código incorreto. Você tem X tentativa(s) restante(s)." }
+// incorrect code (attempts remaining)
+{ "detail": "Incorrect code. You have X attempt(s) remaining." }
 
-// código expirado
-{ "detail": "Este código expirou. Solicite um novo." }
+// code expired
+{ "detail": "This code has expired. Request a new one." }
 
-// bloqueado por excesso de tentativas
-{ "detail": "Muitas tentativas incorretas. Solicite um novo código." }
+// locked out
+{ "detail": "Too many incorrect attempts. Request a new code." }
 
-// nenhum código ativo encontrado
-{ "detail": "Nenhum código ativo encontrado para este email." }
+// no active code found
+{ "detail": "No active code found for this email." }
 ```
 
 ---
 
 ### 3.3 `POST /api/auth/password/reset/`
 
-Redefine a senha usando o `reset_token` obtido na etapa anterior.
+Resets the password using the `reset_token` obtained in the previous step.
 
-**Permissão:** AllowAny  
-**Rate limit:** 5 requisições por IP/minuto
+**Permission:** AllowAny  
+**Rate limit:** 5 requests per IP/minute
 
 **Request:**
 ```json
 {
   "reset_token": "a3f8c2d1-7b4e-4f9a-8c1d-2e3f4a5b6c7d",
-  "new_password": "MinhaNovaS3nh@"
+  "new_password": "MyNewStr0ng@Pass"
 }
 ```
 
-**Lógica interna:**
-1. Busca `PasswordResetCode` por `reset_token` que seja `is_verified=True`, `is_used=False` e não expirado.
-2. Se não encontrar → `400`.
-3. Valida `new_password` com `validate_password_strength()` (regras já existentes: 8–16 chars, maiúscula, minúscula, número, especial).
-4. Chama `user.set_password(new_password)` e `user.save()`.
-5. Marca o código como `is_used=True`.
-6. Invalida todos os refresh tokens ativos do usuário (limpa sessões abertas) — via `OutstandingToken`.
-7. Rastreia `senha_redefinida` no PostHog.
-8. Retorna `200`.
+**Internal logic:**
+1. Looks up `PasswordResetCode` by `reset_token` where `is_verified=True`, `is_used=False`, and not expired.
+2. If not found → `400`.
+3. Validates `new_password` with `validate_password_strength()` (8–16 chars, uppercase, lowercase, digit, special character).
+4. Calls `user.set_password(new_password)` and `user.save()`.
+5. Marks code as `is_used=True`.
+6. Invalidates all active refresh tokens for the user (clears open sessions) via `OutstandingToken`.
+7. Tracks `senha_redefinida` in PostHog.
 
 **Response `200`:**
 ```json
 {
-  "detail": "Senha atualizada com sucesso. Faça login com sua nova senha."
+  "detail": "Password updated successfully. Sign in with your new password."
 }
 ```
 
 **Errors:**
 ```json
-// token inválido, expirado ou já usado
-{ "detail": "Link de redefinição inválido ou expirado. Solicite um novo código." }
+// invalid, expired, or already used token
+{ "detail": "Reset link is invalid or expired. Request a new code." }
 
-// senha fraca
-{ "new_password": ["A senha deve ter entre 8 e 16 caracteres"] }
+// weak password
+{ "new_password": ["Password must be between 8 and 16 characters"] }
 ```
 
 ---
 
-## 4. Arquivos a Criar / Modificar
+## 4. Files to Create / Modify
 
 ```
 src/users/
 ├── models/
-│   └── password_reset.py          ← novo: PasswordResetCode
+│   └── password_reset.py          ← new: PasswordResetCode
 ├── views/
-│   └── password_reset.py          ← novo: 3 views
+│   └── password_reset.py          ← new: ForgotPasswordView, VerifyCodeView, ResetPasswordView
 ├── services/
-│   └── email_service.py           ← adicionar: enviar_codigo_reset()
-└── urls.py                        ← adicionar: 3 rotas
+│   └── email_service.py           ← add: enviar_codigo_reset()
+└── urls.py                        ← add: 3 routes
 ```
 
-### Rotas a adicionar em `src/users/urls.py`:
+Routes to add in `src/users/urls.py`:
 
 ```python
 from .views.password_reset import ForgotPasswordView, VerifyCodeView, ResetPasswordView
@@ -240,81 +239,83 @@ path('password/reset/', ResetPasswordView.as_view()),
 
 ---
 
-## 5. Email — Código de Recuperação
+## 5. Email — Recovery Code
 
-Enviado via `EmailService.enviar_codigo_reset(user_email, user_name, code)`.
+Sent via `EmailService.enviar_codigo_reset(user_email, user_name, code)`.
 
 ### Design
 
-Segue as cores da marca (mesmo padrão do email de boas-vindas):
+Follows brand colors (same pattern as the welcome email):
 
 ```
 ┌─────────────────────────────────────────┐
-│  [header dark #0D1117]                  │
-│       Fince.  ←  logo verde             │
-│   Recuperação de senha 🔐               │
-│   "Oi, {nome}! Recebemos seu pedido"   │
+│  [header #0D1117 dark]                  │
+│       Fince.  ← lime green logo         │
+│         Password recovery               │
+│   "Hi, {name}! We received your        │
+│    password reset request."             │
 └─────────────────────────────────────────┘
 ┌─────────────────────────────────────────┐
-│  Seu código de verificação:             │
+│  Your verification code:                │
 │                                         │
 │  ┌───────────────────────────────────┐  │
 │  │                                   │  │
 │  │      4  8  2  9  1  7             │  │
-│  │  (fundo dark, dígitos verde lima) │  │
+│  │  (dark bg, lime green digits)     │  │
 │  │                                   │  │
 │  └───────────────────────────────────┘  │
 │                                         │
-│  ⏱ Este código expira em 15 minutos.   │
+│  ⏱ This code expires in 15 minutes.    │
 │                                         │
-│  Se você não solicitou esta            │
-│  recuperação, ignore este email.        │
+│  If you did not request a password     │
+│  reset, you can safely ignore this      │
+│  email.                                 │
 └─────────────────────────────────────────┘
 ┌─────────────────────────────────────────┐
 │  © 2026 Fince · suafince.com.br        │
 └─────────────────────────────────────────┘
 ```
 
-**Destaque visual do código:**
-- Fundo: `#0D1117` (dark)
-- Dígitos: `#B2E62A` (verde lima), fonte monospace, tamanho 40px, espaçados
-- Border-radius 14px
-- Cada dígito separado visualmente para fácil leitura no celular
+**Code visual:**
+- Background: `#0D1117` (dark navy)
+- Digits: `#B2E62A` (lime green), monospace, 40px, spaced
+- Border-radius: 14px
+- Each digit separated for easy reading on mobile
 
 ---
 
-## 6. Segurança
+## 6. Security
 
-| Proteção | Mecanismo |
+| Protection | Mechanism |
 |---|---|
-| Não revelar se email existe | Response 200 genérico no `/forgot/` |
-| Código de força bruta | `MAX_ATTEMPTS = 5` — bloqueia o código após 5 erros |
-| Código expirável | `expires_at = now + 15 min` — nunca reutilizável depois |
-| Código hasheado | `HMAC-SHA256(code, SECRET_KEY)` no banco |
-| Token de uso único | `is_used=True` imediatamente após `/reset/` |
-| Rate limit por IP | `django-ratelimit` nas 3 rotas |
-| Invalidar sessões | `OutstandingToken.objects.filter(user=user).delete()` no `/reset/` |
-| Google OAuth | Detecta `has_usable_password()` e responde adequadamente |
-| Códigos paralelos | `/forgot/` invalida códigos anteriores antes de criar novo |
+| Do not reveal if email exists | Generic `200` response on `/forgot/` |
+| Brute-force protection | `MAX_ATTEMPTS = 5` — locks the code after 5 wrong attempts |
+| Expiring code | `expires_at = now + 15 min` — never reusable after |
+| Hashed code | `HMAC-SHA256(code, SECRET_KEY)` stored in DB |
+| Single-use token | `is_used=True` immediately after `/reset/` |
+| IP rate limiting | `django-ratelimit` on all 3 routes |
+| Session invalidation | `OutstandingToken.objects.filter(user=user).delete()` on `/reset/` |
+| Google OAuth | Detects `has_usable_password()` and responds with specific instructions |
+| Parallel codes | `/forgot/` invalidates previous codes before creating a new one |
 
 ---
 
-## 7. PostHog — Eventos Rastreados
+## 7. PostHog Events
 
-| Evento | Quando | Propriedades |
+| Event | When | Properties |
 |---|---|---|
-| `senha_reset_solicitado` | Email enviado com sucesso | `user_id`, `metodo: "email"` |
-| `senha_reset_google_bloqueado` | Usuário Google tenta reset | `user_email` |
-| `senha_codigo_verificado` | Código correto | `user_id` |
-| `senha_codigo_falha` | Código errado | `user_id`, `tentativas_restantes` |
-| `senha_codigo_bloqueado` | MAX_ATTEMPTS atingido | `user_id` |
-| `senha_redefinida` | Senha alterada com sucesso | `user_id` |
+| `senha_reset_solicitado` | Email sent successfully | `user_id`, `method: "email"` |
+| `senha_reset_google_bloqueado` | Google user attempts reset | `user_email` |
+| `senha_codigo_verificado` | Code correct | `user_id` |
+| `senha_codigo_falha` | Code wrong | `user_id`, `attempts_remaining` |
+| `senha_codigo_bloqueado` | MAX_ATTEMPTS reached | `user_id` |
+| `senha_redefinida` | Password changed successfully | `user_id` |
 
 ---
 
 ## 8. Migration
 
-Após criar o model, rodar:
+After creating the model, run:
 
 ```bash
 python manage.py makemigrations users --name add_password_reset_code
@@ -326,17 +327,17 @@ railway run python manage.py migrate
 
 ---
 
-## 9. Checklist de Implementação
+## 9. Implementation Checklist
 
-- [ ] Criar `src/users/models/password_reset.py` com `PasswordResetCode`
-- [ ] Registrar o model no `src/users/models/__init__.py`
-- [ ] Criar migration e aplicar local + Railway
-- [ ] Criar `src/users/views/password_reset.py` com `ForgotPasswordView`, `VerifyCodeView`, `ResetPasswordView`
-- [ ] Adicionar método `enviar_codigo_reset()` em `email_service.py` com template HTML do código
-- [ ] Registrar as 3 rotas em `src/users/urls.py`
-- [ ] Testar fluxo completo: solicitar → receber email → verificar → redefinir → logar com nova senha
-- [ ] Testar caso Google OAuth (deve retornar mensagem específica)
-- [ ] Testar expiração (testar com código de 15 min expirado)
-- [ ] Testar bloqueio por MAX_ATTEMPTS (5 tentativas erradas)
-- [ ] Verificar que sessões antigas são invalidadas após reset
-- [ ] Deploy no Railway
+- [ ] Create `src/users/models/password_reset.py` with `PasswordResetCode`
+- [ ] Register the model in `src/users/models/__init__.py`
+- [ ] Create and apply migration locally + Railway
+- [ ] Create `src/users/views/password_reset.py` with `ForgotPasswordView`, `VerifyCodeView`, `ResetPasswordView`
+- [ ] Add `enviar_codigo_reset()` to `email_service.py` with HTML code template
+- [ ] Register 3 routes in `src/users/urls.py`
+- [ ] Test full flow: request → receive email → verify → reset → login with new password
+- [ ] Test Google OAuth case (should return specific message)
+- [ ] Test expiration (test with 15-min expired code)
+- [ ] Test lockout at MAX_ATTEMPTS (5 wrong attempts)
+- [ ] Verify old sessions are invalidated after reset
+- [ ] Deploy on Railway
