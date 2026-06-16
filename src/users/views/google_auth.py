@@ -8,7 +8,7 @@ from django.utils.decorators import method_decorator
 
 from ..serializers.google_auth import GoogleRegisterSerializer, GoogleLoginSerializer
 from ..models.device import UserDevice
-from ..utils.telemetry import track_event
+from ..utils.telemetry import track_event, identify_user
 from ..services.email_service import EmailService
 
 
@@ -105,6 +105,7 @@ class GoogleRegisterView(APIView):
 
             device_name, browser, ip_address = _register_device(request, user, refresh)
 
+            identify_user(user, extra_properties={"origem_cadastro": "google"})
             track_event(
                 user=user,
                 event_name="usuario_cadastrado_sucesso",
@@ -149,7 +150,7 @@ class GoogleLoginView(APIView):
 
             track_event(
                 user=user,
-                event_name="usuario_logou",
+                event_name="usuario_fez_login",
                 properties={
                     "metodo": "google_oauth",
                     "device_name": device_name,

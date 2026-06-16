@@ -7,7 +7,7 @@ from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 
 from ..serializers.register import RegisterSerializer
-from ..utils.telemetry import track_event
+from ..utils.telemetry import track_event, identify_user
 from ..services.email_service import EmailService
 
 
@@ -23,6 +23,7 @@ class RegisterView(APIView):
 
             refresh = FirmRefreshToken.for_user(user)
 
+            identify_user(user, extra_properties={"origem_cadastro": "email"})
             track_event(
                 user=user,
                 event_name="usuario_cadastrado_sucesso",

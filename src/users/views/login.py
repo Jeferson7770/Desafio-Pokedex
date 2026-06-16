@@ -90,8 +90,9 @@ class LoginView(APIView):
 
             track_event(
                 user=user,
-                event_name="usuario_logou",
+                event_name="usuario_fez_login",
                 properties={
+                    "metodo": "email",
                     "device_name": device_name,
                     "browser": browser,
                     "ip_address": ip_address,
