@@ -9,60 +9,30 @@ from ..models.motor import SimulacaoPrioridade, ItemSimulacaoPrioridade
 
 
 class MotorPrioridadeEngine:
-    # Peso de cada nível de prioridade (menor = paga primeiro)
     PRIORITY_WEIGHTS = {
-        "CRITICA": 1,
-        "ESPECIAL": 2,
-        "ALTA": 3,
-        "MEDIA_ALTA": 4,
-        "MEDIA": 5,
-        "MEDIA_BAIXA": 6,
-        "BAIXA": 7,
-        "INDEFINIDA": 99,
-        # legado — mapeado para equivalentes mais próximos
-        "LEGAL": 1,
-        "OPERACIONAL": 5,
-        "OPCIONAL": 7,
+        "CRITICA": 1, "ESPECIAL": 2, "ALTA": 3, "MEDIA_ALTA": 4,
+        "MEDIA": 5, "MEDIA_BAIXA": 6, "BAIXA": 7, "INDEFINIDA": 99,
+        "LEGAL": 1, "OPERACIONAL": 5, "OPCIONAL": 7,
     }
-
-    # Ordem da categoria dentro do mesmo nível de prioridade (spec: matriz consolidada)
     CATEGORY_ORDER = {
-        "PESSOAL_E_REMUNERACAO": 1,
-        "FISCAL_E_OBRIGACOES_LEGAIS": 2,
-        "CUSTAS_PROCESSUAIS_E_JUDICIAIS": 3,
-        "ESTRUTURA_E_OPERACAO": 4,
-        "TECNOLOGIA_E_ASSINATURA": 5,
-        "FINANCEIRA": 6,
-        "MARKETING_E_AQUISICAO": 7,
-        "MOBILIDADE_E_DESLOCAMENTO": 8,
-        "INVESTIMENTOS_NO_ESCRITORIO": 9,
-        "CAPACITACAO_E_DESENVOLVIMENTO": 10,
+        "PESSOAL_E_REMUNERACAO": 1, "FISCAL_E_OBRIGACOES_LEGAIS": 2,
+        "CUSTAS_PROCESSUAIS_E_JUDICIAIS": 3, "ESTRUTURA_E_OPERACAO": 4,
+        "TECNOLOGIA_E_ASSINATURA": 5, "FINANCEIRA": 6,
+        "MARKETING_E_AQUISICAO": 7, "MOBILIDADE_E_DESLOCAMENTO": 8,
+        "INVESTIMENTOS_NO_ESCRITORIO": 9, "CAPACITACAO_E_DESENVOLVIMENTO": 10,
         "A_CLASSIFICAR": 99,
     }
-
     PRIORITY_LABELS = {
-        "CRITICA": "Crítica",
-        "ESPECIAL": "Especial",
-        "ALTA": "Alta",
-        "MEDIA_ALTA": "Média-Alta",
-        "MEDIA": "Média",
-        "MEDIA_BAIXA": "Média-Baixa",
-        "BAIXA": "Baixa",
-        "INDEFINIDA": "Indefinida",
+        "CRITICA": "Crítica", "ESPECIAL": "Especial", "ALTA": "Alta",
+        "MEDIA_ALTA": "Média-Alta", "MEDIA": "Média", "MEDIA_BAIXA": "Média-Baixa",
+        "BAIXA": "Baixa", "INDEFINIDA": "Indefinida",
     }
-
-    # Prioridade padrão por categoria (usada como referência; advogado pode ajustar)
     CATEGORY_DEFAULT_PRIORITY = {
-        "PESSOAL_E_REMUNERACAO": "CRITICA",
-        "FISCAL_E_OBRIGACOES_LEGAIS": "CRITICA",
-        "CUSTAS_PROCESSUAIS_E_JUDICIAIS": "ESPECIAL",
-        "ESTRUTURA_E_OPERACAO": "ALTA",
-        "TECNOLOGIA_E_ASSINATURA": "MEDIA_ALTA",
-        "FINANCEIRA": "MEDIA",
-        "MARKETING_E_AQUISICAO": "MEDIA",
-        "MOBILIDADE_E_DESLOCAMENTO": "MEDIA_BAIXA",
-        "INVESTIMENTOS_NO_ESCRITORIO": "BAIXA",
-        "CAPACITACAO_E_DESENVOLVIMENTO": "BAIXA",
+        "PESSOAL_E_REMUNERACAO": "CRITICA", "FISCAL_E_OBRIGACOES_LEGAIS": "CRITICA",
+        "CUSTAS_PROCESSUAIS_E_JUDICIAIS": "ESPECIAL", "ESTRUTURA_E_OPERACAO": "ALTA",
+        "TECNOLOGIA_E_ASSINATURA": "MEDIA_ALTA", "FINANCEIRA": "MEDIA",
+        "MARKETING_E_AQUISICAO": "MEDIA", "MOBILIDADE_E_DESLOCAMENTO": "MEDIA_BAIXA",
+        "INVESTIMENTOS_NO_ESCRITORIO": "BAIXA", "CAPACITACAO_E_DESENVOLVIMENTO": "BAIXA",
         "A_CLASSIFICAR": "INDEFINIDA",
     }
 
@@ -73,19 +43,25 @@ class MotorPrioridadeEngine:
         result = BankAccount.objects.filter(firm=self.firm).aggregate(total=Sum("current_balance"))
         return result["total"] or Decimal("0.00")
 
-    def _obter_outras_entradas_pendentes(self, start, end):
-        return list(
-            OutraEntradaInstallment.objects.filter(
-                outra_entrada__firm=self.firm,
-                status=OutraEntradaInstallment.Status.PENDENTE,
-                due_date__gte=start,
-                due_date__lt=end,
-            ).select_related("outra_entrada")
+    def _sort_key(self, p):
+        priority = str(p.expense.priority).strip().upper()
+        category = str(p.expense.category).strip().upper()
+        taxa = p.expense.interest_rate_month or Decimal("0.00")
+        juro_diario = (p.amount * (taxa / Decimal("100.00"))) / Decimal("30")
+        return (
+            self.PRIORITY_WEIGHTS.get(priority, 50),
+            self.CATEGORY_ORDER.get(category, 50),
+            -juro_diario,
+            p.due_date,
         )
 
-    def _item_de_parcela(self, parcela, status_recomendacao=None):
+    def _aplicar(self, amount, saldo):
+        """Deduz o valor do saldo e retorna (status, novo_saldo). Saldo pode ficar negativo."""
+        return ("RECOMENDADO" if saldo >= amount else "NAO_COBERTO"), saldo - amount
+
+    def _item_parcela(self, parcela, status=None, saldo_pos=None, amount=None, interest=None):
         priority = parcela.expense.priority
-        data = {
+        item = {
             "tipo": "despesa",
             "parcela": parcela.id,
             "outra_entrada_installment_id": None,
@@ -94,15 +70,16 @@ class MotorPrioridadeEngine:
             "priority": priority,
             "priority_label": self.PRIORITY_LABELS.get(priority, priority),
             "due_date": parcela.due_date.strftime("%Y-%m-%d"),
-            "amount_snapshot": float(parcela.amount),
-            "late_interest_snapshot": float(parcela.late_interest_cost),
+            "amount_snapshot": float(amount if amount is not None else parcela.amount),
+            "late_interest_snapshot": float(interest if interest is not None else parcela.late_interest_cost),
         }
-        if status_recomendacao:
-            data["status_recomendacao"] = status_recomendacao
-        return data
+        if status is not None:
+            item["status_recomendacao"] = status
+            item["saldo_pos_pagamento"] = float(saldo_pos)
+        return item
 
-    def _item_de_outra_entrada(self, inst, status_recomendacao=None):
-        data = {
+    def _item_outra_entrada(self, inst, status, saldo_pos):
+        return {
             "tipo": "outra_entrada",
             "parcela": None,
             "outra_entrada_installment_id": inst.id,
@@ -113,187 +90,111 @@ class MotorPrioridadeEngine:
             "due_date": inst.due_date.strftime("%Y-%m-%d"),
             "amount_snapshot": float(inst.amount),
             "late_interest_snapshot": float(inst.late_interest_cost),
+            "status_recomendacao": status,
+            "saldo_pos_pagamento": float(saldo_pos),
         }
-        if status_recomendacao:
-            data["status_recomendacao"] = status_recomendacao
-        return data
 
-    def _criterio_ordenacao(self, p):
-        prioridade = str(p.expense.priority).strip().upper()
-        categoria = str(p.expense.category).strip().upper()
-
-        peso_prioridade = self.PRIORITY_WEIGHTS.get(prioridade, 50)
-        ordem_categoria = self.CATEGORY_ORDER.get(categoria, 50)
-
-        taxa_mensal = p.expense.interest_rate_month or Decimal("0.00")
-        juro_diario = (p.amount * (taxa_mensal / Decimal("100.00"))) / Decimal("30")
-
-        # 1º nível de prioridade · 2º ordem da categoria dentro do mesmo nível ·
-        # 3º maior custo de atraso/dia (desc) · 4º vencimento mais próximo
-        return (peso_prioridade, ordem_categoria, -juro_diario, p.due_date)
-
-    def _obter_parcelas_periodo(self, ano, mes):
-        """Retorna (rankeaveis_ordenadas, pendentes_categorizacao) para o período."""
+    def _obter_parcelas_periodo(self, ano, mes, exclude_ids=None):
         start = datetime.date(ano, mes, 1)
         end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
-        parcelas = list(
-            ParcelaDespesa.objects.filter(
-                expense__firm=self.firm,
-                is_paid=False,
-                due_date__gte=start,
-                due_date__lt=end,
-                expense__is_active=True,
-            ).select_related("expense")
+        qs = ParcelaDespesa.objects.filter(
+            expense__firm=self.firm, is_paid=False,
+            due_date__gte=start, due_date__lt=end, expense__is_active=True,
+        ).select_related("expense")
+        if exclude_ids:
+            qs = qs.exclude(id__in=exclude_ids)
+        parcelas = list(qs)
+        rankeaveis = sorted(
+            [p for p in parcelas
+             if str(p.expense.priority).upper() not in ("INDEFINIDA", "")
+             and str(p.expense.category).upper() != "A_CLASSIFICAR"],
+            key=self._sort_key,
         )
-
-        rankeaveis = [
-            p for p in parcelas
-            if str(p.expense.priority).upper() not in ("INDEFINIDA", "")
-            and str(p.expense.category).upper() != "A_CLASSIFICAR"
-        ]
         pendentes = [
             p for p in parcelas
             if str(p.expense.priority).upper() in ("INDEFINIDA", "")
             or str(p.expense.category).upper() == "A_CLASSIFICAR"
         ]
-        return sorted(rankeaveis, key=self._criterio_ordenacao), pendentes
+        return rankeaveis, pendentes
+
+    def _obter_outras_entradas_pendentes(self, start, end):
+        return list(
+            OutraEntradaInstallment.objects.filter(
+                outra_entrada__firm=self.firm,
+                status=OutraEntradaInstallment.Status.PENDENTE,
+                due_date__gte=start, due_date__lt=end,
+            ).select_related("outra_entrada")
+        )
 
     def calcular_dinamico(self, ano, mes):
-        reference_date = datetime.date(ano, mes, 1)
+        start = datetime.date(ano, mes, 1)
+        end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
 
-        # Prefetch with ordering baked in so the cache is used (avoid re-query with .order_by())
-        items_qs = (
-            ItemSimulacaoPrioridade.objects
-            .order_by("ordem")
-            .select_related("parcela__expense")
-        )
+        items_qs = ItemSimulacaoPrioridade.objects.order_by("ordem").select_related("parcela__expense")
         simulacao_salva = (
             SimulacaoPrioridade.objects
-            .filter(firm=self.firm, reference_date=reference_date)
+            .filter(firm=self.firm, reference_date=start)
             .prefetch_related(Prefetch("items", queryset=items_qs))
             .first()
         )
 
-        start = datetime.date(ano, mes, 1)
-        end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
+        saldo_disponivel = self.obter_saldo_consolidado()
+        saldo = saldo_disponivel
+        recomendados, nao_cobertos = [], []
 
         if simulacao_salva:
-            saldo_disponivel = self.obter_saldo_consolidado()
-            saldo_restante = saldo_disponivel
-            recomendados = []
-            nao_cobertos = []
+            # Processar na ordem exata definida pelo usuario
             parcelas_na_simulacao = set()
-
             for item in simulacao_salva.items.all():
                 parcelas_na_simulacao.add(item.parcela_id)
-                # Recompute status sequentially from current balance — never trust stored value,
-                # which may have been saved before the always-deduct fix.
-                status_rec = "RECOMENDADO" if saldo_restante >= item.amount_snapshot else "NAO_COBERTO"
-                saldo_restante -= item.amount_snapshot
+                status, saldo = self._aplicar(item.amount_snapshot, saldo)
+                entry = self._item_parcela(
+                    item.parcela, status, saldo,
+                    amount=item.amount_snapshot, interest=item.late_interest_snapshot,
+                )
+                (recomendados if status == "RECOMENDADO" else nao_cobertos).append(entry)
+            # Parcelas criadas depois que a simulacao foi salva: appenda por prioridade
+            rankeaveis, pendentes_list = self._obter_parcelas_periodo(ano, mes, exclude_ids=parcelas_na_simulacao)
+        else:
+            rankeaveis, pendentes_list = self._obter_parcelas_periodo(ano, mes)
 
-                item_data = self._item_de_parcela(item.parcela, status_rec)
-                item_data["amount_snapshot"] = float(item.amount_snapshot)
-                item_data["late_interest_snapshot"] = float(item.late_interest_snapshot)
-                if status_rec == "RECOMENDADO":
-                    recomendados.append(item_data)
-                else:
-                    nao_cobertos.append(item_data)
-
-            novas_parcelas = list(
-                ParcelaDespesa.objects.filter(
-                    expense__firm=self.firm,
-                    is_paid=False,
-                    due_date__gte=start,
-                    due_date__lt=end,
-                    expense__is_active=True,
-                ).exclude(id__in=parcelas_na_simulacao).select_related("expense")
+        for parcela in rankeaveis:
+            status, saldo = self._aplicar(parcela.amount, saldo)
+            (recomendados if status == "RECOMENDADO" else nao_cobertos).append(
+                self._item_parcela(parcela, status, saldo)
             )
 
-            novas_rankeaveis = [
-                p for p in novas_parcelas
-                if str(p.expense.priority).upper() not in ("INDEFINIDA", "")
-                and str(p.expense.category).upper() != "A_CLASSIFICAR"
-            ]
-            novas_pendentes = [
-                p for p in novas_parcelas
-                if str(p.expense.priority).upper() in ("INDEFINIDA", "")
-                or str(p.expense.category).upper() == "A_CLASSIFICAR"
-            ]
-
-            for parcela in sorted(novas_rankeaveis, key=self._criterio_ordenacao):
-                if saldo_restante >= parcela.amount:
-                    saldo_restante -= parcela.amount
-                    recomendados.append(self._item_de_parcela(parcela, "RECOMENDADO"))
-                else:
-                    nao_cobertos.append(self._item_de_parcela(parcela, "NAO_COBERTO"))
-
-            for inst in sorted(self._obter_outras_entradas_pendentes(start, end), key=lambda i: i.due_date):
-                if saldo_restante >= inst.amount:
-                    saldo_restante -= inst.amount
-                    recomendados.append(self._item_de_outra_entrada(inst, "RECOMENDADO"))
-                else:
-                    nao_cobertos.append(self._item_de_outra_entrada(inst, "NAO_COBERTO"))
-
-            return {
-                "id": simulacao_salva.id,
-                "reference_period": f"{ano}-{str(mes).zfill(2)}",
-                "saldo_total_disponivel": float(saldo_disponivel),
-                "saldo_restante_pos_pagamentos": float(saldo_restante),
-                "pagamentos_recomendados": recomendados,
-                "pagamentos_nao_cobertos": nao_cobertos,
-                "pendentes_categorizacao": [self._item_de_parcela(p) for p in novas_pendentes],
-            }
-
-        saldo_disponivel = self.obter_saldo_consolidado()
-        parcelas_ordenadas, parcelas_sem_categoria = self._obter_parcelas_periodo(ano, mes)
-        outras_pendentes = self._obter_outras_entradas_pendentes(start, end)
-        saldo_restante = saldo_disponivel
-
-        recomendados = []
-        nao_cobertos = []
-
-        for parcela in parcelas_ordenadas:
-            if saldo_restante >= parcela.amount:
-                saldo_restante -= parcela.amount
-                recomendados.append(self._item_de_parcela(parcela, "RECOMENDADO"))
-            else:
-                nao_cobertos.append(self._item_de_parcela(parcela, "NAO_COBERTO"))
-
-        for inst in sorted(outras_pendentes, key=lambda i: i.due_date):
-            if saldo_restante >= inst.amount:
-                saldo_restante -= inst.amount
-                recomendados.append(self._item_de_outra_entrada(inst, "RECOMENDADO"))
-            else:
-                nao_cobertos.append(self._item_de_outra_entrada(inst, "NAO_COBERTO"))
+        for inst in sorted(self._obter_outras_entradas_pendentes(start, end), key=lambda i: i.due_date):
+            status, saldo = self._aplicar(inst.amount, saldo)
+            (recomendados if status == "RECOMENDADO" else nao_cobertos).append(
+                self._item_outra_entrada(inst, status, saldo)
+            )
 
         return {
-            "id": None,
+            "id": simulacao_salva.id if simulacao_salva else None,
             "reference_period": f"{ano}-{str(mes).zfill(2)}",
             "saldo_total_disponivel": float(saldo_disponivel),
-            "saldo_restante_pos_pagamentos": float(saldo_restante),
+            "saldo_restante_pos_pagamentos": float(saldo),
             "pagamentos_recomendados": recomendados,
             "pagamentos_nao_cobertos": nao_cobertos,
-            "pendentes_categorizacao": [self._item_de_parcela(p) for p in parcelas_sem_categoria],
+            "pendentes_categorizacao": [self._item_parcela(p) for p in pendentes_list],
         }
 
     def salvar_configuracao_da_tela(self, ano, mes, itens_da_tela):
         saldo_disponivel = self.obter_saldo_consolidado()
         reference_date = datetime.date(ano, mes, 1)
-        saldo_restante = saldo_disponivel
+        saldo = saldo_disponivel
 
-        # Pre-fetch ALL parcelas in one query instead of one per loop iteration
         parcela_ids = [item.get("parcela") for item in itens_da_tela if item.get("parcela")]
         parcelas_map = {
             p.id: p
             for p in ParcelaDespesa.objects.filter(
-                id__in=parcela_ids,
-                expense__firm=self.firm
+                id__in=parcela_ids, expense__firm=self.firm
             ).select_related("expense")
         }
 
         with db_transaction.atomic():
             SimulacaoPrioridade.objects.filter(firm=self.firm, reference_date=reference_date).delete()
-
             simulacao = SimulacaoPrioridade.objects.create(
                 firm=self.firm,
                 reference_date=reference_date,
@@ -306,24 +207,18 @@ class MotorPrioridadeEngine:
                 parcela = parcelas_map.get(item_front.get("parcela"))
                 if not parcela:
                     continue
-
-                # Sempre deduz do saldo independente de cobrir ou não —
-                # o usuário definiu a ordem e o saldo acumula o déficit corretamente.
-                status_rec = "RECOMENDADO" if saldo_restante >= parcela.amount else "NAO_COBERTO"
-                saldo_restante -= parcela.amount
-
+                status, saldo = self._aplicar(parcela.amount, saldo)
                 items_to_create.append(ItemSimulacaoPrioridade(
                     simulacao=simulacao,
                     parcela=parcela,
-                    status_recomendacao=status_rec,
+                    status_recomendacao=status,
                     amount_snapshot=parcela.amount,
                     late_interest_snapshot=parcela.late_interest_cost,
                     ordem=index,
                 ))
 
             ItemSimulacaoPrioridade.objects.bulk_create(items_to_create)
-
-            simulacao.saldo_restante_pos_pagamentos = saldo_restante
+            simulacao.saldo_restante_pos_pagamentos = saldo
             simulacao.save(update_fields=["saldo_restante_pos_pagamentos"])
 
         return simulacao
