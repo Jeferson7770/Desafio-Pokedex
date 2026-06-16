@@ -302,11 +302,10 @@ class MotorPrioridadeEngine:
                 if not parcela:
                     continue
 
-                status_rec = item_front.get("status_recomendacao", "RECOMENDADO")
-                if status_rec == "RECOMENDADO" and saldo_restante >= parcela.amount:
-                    saldo_restante -= parcela.amount
-                else:
-                    status_rec = "NAO_COBERTO"
+                # Sempre deduz do saldo independente de cobrir ou não —
+                # o usuário definiu a ordem e o saldo acumula o déficit corretamente.
+                status_rec = "RECOMENDADO" if saldo_restante >= parcela.amount else "NAO_COBERTO"
+                saldo_restante -= parcela.amount
 
                 items_to_create.append(ItemSimulacaoPrioridade(
                     simulacao=simulacao,
