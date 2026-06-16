@@ -40,6 +40,17 @@ class MotorPrioridadeEngine:
         "A_CLASSIFICAR": 99,
     }
 
+    PRIORITY_LABELS = {
+        "CRITICA": "Crítica",
+        "ESPECIAL": "Especial",
+        "ALTA": "Alta",
+        "MEDIA_ALTA": "Média-Alta",
+        "MEDIA": "Média",
+        "MEDIA_BAIXA": "Média-Baixa",
+        "BAIXA": "Baixa",
+        "INDEFINIDA": "Indefinida",
+    }
+
     # Prioridade padrão por categoria (usada como referência; advogado pode ajustar)
     CATEGORY_DEFAULT_PRIORITY = {
         "PESSOAL_E_REMUNERACAO": "CRITICA",
@@ -72,15 +83,16 @@ class MotorPrioridadeEngine:
             ).select_related("outra_entrada")
         )
 
-    @staticmethod
-    def _item_de_parcela(parcela, status_recomendacao=None):
+    def _item_de_parcela(self, parcela, status_recomendacao=None):
+        priority = parcela.expense.priority
         data = {
             "tipo": "despesa",
             "parcela": parcela.id,
             "outra_entrada_installment_id": None,
             "expense_title": parcela.expense.title,
             "category": parcela.expense.category,
-            "priority": parcela.expense.priority,
+            "priority": priority,
+            "priority_label": self.PRIORITY_LABELS.get(priority, priority),
             "due_date": parcela.due_date.strftime("%Y-%m-%d"),
             "amount_snapshot": float(parcela.amount),
             "late_interest_snapshot": float(parcela.late_interest_cost),
@@ -89,15 +101,15 @@ class MotorPrioridadeEngine:
             data["status_recomendacao"] = status_recomendacao
         return data
 
-    @staticmethod
-    def _item_de_outra_entrada(inst, status_recomendacao=None):
+    def _item_de_outra_entrada(self, inst, status_recomendacao=None):
         data = {
             "tipo": "outra_entrada",
             "parcela": None,
             "outra_entrada_installment_id": inst.id,
             "expense_title": inst.outra_entrada.title,
             "category": "OUTRAS_ENTRADAS",
-            "priority": "OPERACIONAL",
+            "priority": "MEDIA",
+            "priority_label": "Média",
             "due_date": inst.due_date.strftime("%Y-%m-%d"),
             "amount_snapshot": float(inst.amount),
             "late_interest_snapshot": float(inst.late_interest_cost),
