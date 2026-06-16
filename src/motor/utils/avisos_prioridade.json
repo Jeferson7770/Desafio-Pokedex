@@ -1,0 +1,128 @@
+{
+  "PESSOAL_E_REMUNERACAO": {
+    "_aviso_padrao": "Funcionário ou prestador não pago gera risco trabalhista imediato e dano reputacional.",
+    "pro-labore": "Ação trabalhista com multa de 40% sobre FGTS + 1 mês de aviso prévio por ano trabalhado.",
+    "salarios e encargos clt": "Ação trabalhista + encargos previdenciários com juros e multa SELIC.",
+    "salarios": "Ação trabalhista + encargos previdenciários com juros e multa SELIC.",
+    "estagiarios": "Dano reputacional imediato — funcionário insatisfeito impacta operação e clima do escritório.",
+    "freelancers e prestadores": "Rescisão de contrato com possibilidade de ação de cobrança.",
+    "freelancers": "Rescisão de contrato com possibilidade de ação de cobrança.",
+    "prestadores": "Rescisão de contrato com possibilidade de ação de cobrança.",
+    "vale-transporte": "Risco de interdição do CNPJ por débito previdenciário.",
+    "vale-transporte vt": "Risco de interdição do CNPJ por débito previdenciário.",
+    "vale-refeicao": "Multa de mora + juros sobre salário em atraso conforme CLT.",
+    "vale-refeicao vr": "Multa de mora + juros sobre salário em atraso conforme CLT.",
+    "plano de saude": "Cancelamento do benefício com possível impacto nas obrigações CLT."
+  },
+  "FISCAL_E_OBRIGACOES_LEGAIS": {
+    "_aviso_padrao": "Débitos fiscais acumulam multa e juros SELIC — podem resultar em Dívida Ativa e bloqueio de CNPJ.",
+    "das": "Multa de 75% a 150% sobre o valor devido em caso de autuação fiscal.",
+    "das simples nacional": "Multa de 75% a 150% sobre o valor devido em caso de autuação fiscal.",
+    "iss": "Multa e juros sobre o serviço prestado com risco de autuação municipal.",
+    "irpj": "Juros SELIC acumulados sobre todo o período em atraso.",
+    "csll": "Inscrição em Dívida Ativa com possibilidade de penhora de bens e bloqueio de contas (BACENJUD).",
+    "pis": "Autuação fiscal com multa de mora e juros SELIC acumulados.",
+    "cofins": "Suspensão do CNPJ — inviabiliza emissão de notas fiscais e contratos.",
+    "inss patronal": "Perda do certificado de regularidade fiscal e risco de execução fiscal.",
+    "fgts": "Perda do certificado de regularidade fiscal — impede licitações e contratos públicos.",
+    "honorarios do contador": "Risco de rescisão do serviço e perda de acesso às obrigações acessórias.",
+    "anuidade oab": "Suspensão do exercício profissional até regularização.",
+    "certidoes e emolumentos": "Impossibilidade de obter certidões negativas para novos contratos."
+  },
+  "CUSTAS_PROCESSUAIS_E_JUDICIAIS": {
+    "_aviso_padrao": "Dano reputacional grave e irreversível perante o cliente.",
+    "preparo recursal": "Deserção do recurso — perda automática e irrecuperável do direito de recorrer.",
+    "pericias tecnicas": "Extinção do processo por falta de prova técnica essencial.",
+    "diligencias externas": "Extinção do processo sem resolução de mérito — prejuízo direto ao cliente.",
+    "honorarios periciais": "Paralisia do processo por ausência de laudo técnico.",
+    "despesas com oficial de justica": "Responsabilização do advogado por negligência — risco de processo disciplinar na OAB e ação indenizatória.",
+    "oficial de justica": "Responsabilização do advogado por negligência — risco de processo disciplinar na OAB e ação indenizatória.",
+    "outras custas judiciais": "Prejuízo direto ao andamento do processo e ao cliente."
+  },
+  "ESTRUTURA_E_OPERACAO": {
+    "_aviso_padrao": "Impacto direto na operação do escritório com risco de interrupção de serviços essenciais.",
+    "aluguel": "Ação de despejo a partir de 1 mês de inadimplência + multa contratual + inscrição em SPC/Serasa.",
+    "aluguel do escritorio": "Ação de despejo a partir de 1 mês de inadimplência + multa contratual + inscrição em SPC/Serasa.",
+    "condominio": "Ação de cobrança com negativação e possibilidade de penhora de bens.",
+    "iptu": "Inscrição em dívida ativa municipal + execução fiscal com penhora do imóvel.",
+    "agua e esgoto": "Corte do serviço com aviso mínimo + multa de religação + impacto operacional imediato.",
+    "energia eletrica": "Corte do serviço com aviso mínimo + multa de religação + impacto operacional imediato.",
+    "internet e telefonia": "Suspensão do serviço + bloqueio para novos contratos com a operadora.",
+    "telefonia": "Suspensão do serviço + bloqueio para novos contratos com a operadora.",
+    "internet": "Suspensão do serviço + bloqueio para novos contratos com a operadora.",
+    "limpeza e conservacao": "Acúmulo de passivo com possível rescisão contratual.",
+    "seguranca e monitoramento": "Rescisão contratual com multa + risco operacional e de patrimônio.",
+    "seguranca": "Rescisão contratual com multa + risco operacional e de patrimônio."
+  },
+  "TECNOLOGIA_E_ASSINATURA": {
+    "_aviso_padrao": "Multa contratual em contratos anuais de software + risco de perda de acesso a dados críticos.",
+    "software juridico": "Bloqueio imediato do acesso — perda de acesso ao histórico de processos e documentos.",
+    "astrea": "Bloqueio imediato do acesso — perda de acesso ao histórico de processos e documentos.",
+    "projuris": "Bloqueio imediato do acesso — perda de acesso ao histórico de processos e documentos.",
+    "advbox": "Bloqueio imediato do acesso — perda de acesso ao histórico de processos e documentos.",
+    "pesquisa juridica": "Perda de acesso a jurisprudência e andamentos processuais.",
+    "jusbrasil": "Perda de acesso a jurisprudência e andamentos processuais.",
+    "westlaw": "Perda de acesso a base jurídica internacional.",
+    "dominio e hospedagem": "Site fora do ar + domínio expirado pode ser registrado por terceiros — risco reputacional e de segurança crítico.",
+    "dominio": "Domínio expirado pode ser registrado por terceiros — risco reputacional e de segurança crítico.",
+    "hospedagem": "Site fora do ar — impacto direto na captação de clientes e credibilidade.",
+    "armazenamento em nuvem": "Perda de acesso a documentos e backups críticos.",
+    "ferramentas de produtividade": "Impacto na operação diária do escritório."
+  },
+  "FINANCEIRA": {
+    "_aviso_padrao": "Débito financeiro acumula juros e pode resultar em negativação e restrição de crédito.",
+    "tarifas bancarias": "Cobrança acumulada com juros + possibilidade de encerramento compulsório da conta.",
+    "juros e encargos financeiros": "Acúmulo exponencial de juros compostos sobre o principal em atraso.",
+    "parcelamentos": "Negativação no SPC/Serasa a partir de 30 dias + protesto em cartório + ação de cobrança.",
+    "consorcio": "Exclusão do grupo com perda dos valores pagos conforme contrato + multa de saída.",
+    "seguros": "Cancelamento da apólice sem aviso após carência — qualquer sinistro após o cancelamento não é coberto.",
+    "seguro": "Cancelamento da apólice sem aviso após carência — qualquer sinistro após o cancelamento não é coberto."
+  },
+  "MARKETING_E_AQUISICAO": {
+    "_aviso_padrao": "Impacto na captação de novos clientes e visibilidade do escritório.",
+    "trafego pago": "Suspensão imediata das campanhas — queda direta e mensurável na captação de clientes.",
+    "meta ads": "Suspensão imediata das campanhas — queda direta e mensurável na captação de clientes.",
+    "google ads": "Suspensão imediata das campanhas — queda direta e mensurável na captação de clientes.",
+    "agencia de marketing": "Rescisão contratual com multa + perda do trabalho em andamento.",
+    "freelancer de marketing": "Interrupção do trabalho em andamento.",
+    "producao de conteudo": "Interrupção da estratégia de conteúdo com perda de continuidade.",
+    "site e seo": "Perda de posicionamento SEO acumulado se o site sair do ar.",
+    "seo": "Perda de posicionamento SEO acumulado — difícil e demorado de recuperar.",
+    "eventos e networking": "Perda da vaga com possível cobrança de multa contratual.",
+    "brindes e materiais institucionais": "Sem impacto imediato — postergável no curto prazo."
+  },
+  "MOBILIDADE_E_DESLOCAMENTO": {
+    "_aviso_padrao": "Sem impacto operacional imediato — postergável sem consequência grave no curto prazo.",
+    "combustivel": "Impacto operacional se o advogado depende de deslocamento para audiências e diligências presenciais.",
+    "estacionamento": "Débitos de estacionamento com juros e possibilidade de protesto em cartório.",
+    "transporte": "Cartão bloqueado por inadimplência afeta todas as despesas no mesmo cartão.",
+    "uber": "Cartão bloqueado por inadimplência afeta todas as despesas no mesmo cartão.",
+    "taxi": "Cartão bloqueado por inadimplência afeta todas as despesas no mesmo cartão.",
+    "passagens": "Débitos com possibilidade de protesto em cartório.",
+    "passagens aereas": "Débitos com possibilidade de protesto em cartório.",
+    "hospedagem em viagens": "Sem impacto operacional imediato."
+  },
+  "CAPACITACAO_E_DESENVOLVIMENTO": {
+    "_aviso_padrao": "Sem impacto operacional imediato — postergável sem consequência para o escritório no curto prazo.",
+    "cursos e treinamentos": "Cancelamento de matrícula com perda parcial ou total do valor pago conforme política da instituição.",
+    "congressos e seminarios": "Impedimento de emissão de certificado mesmo após conclusão do curso.",
+    "pos-graduacao": "Cancelamento de matrícula com perda parcial ou total do valor pago.",
+    "especializacao": "Cancelamento de matrícula com perda parcial ou total do valor pago.",
+    "livros e publicacoes": "Sem impacto operacional imediato."
+  },
+  "INVESTIMENTOS_NO_ESCRITORIO": {
+    "_aviso_padrao": "Risco de retomada do bem ou paralisação de obra com multa contratual.",
+    "mobiliario": "Retomada do bem em contratos com alienação fiduciária (equipamentos financiados).",
+    "reforma": "Obras paralisadas com multa contratual e retrabalho.",
+    "adequacao do espaco": "Obras paralisadas com multa contratual e retrabalho.",
+    "equipamentos de ti": "Ação de cobrança com negativação no SPC/Serasa.",
+    "material de escritorio": "Ação de cobrança com negativação no SPC/Serasa."
+  },
+  "A_CLASSIFICAR": {
+    "_aviso_padrao": "Despesa sem categoria — o motor de prioridade não calcula risco nem exibe alertas. Categorize para ativar o motor.",
+    "_aviso_vencimento": "Esta despesa vence em breve e ainda não foi categorizada. Classifique-a para que o motor de prioridade funcione corretamente."
+  },
+  "OUTRAS_ENTRADAS": {
+    "_aviso_padrao": "Recebimento pendente — acompanhe para manter o fluxo de caixa atualizado."
+  }
+}

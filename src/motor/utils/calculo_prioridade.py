@@ -1,3 +1,6 @@
+import json
+import unicodedata
+import os
 from decimal import Decimal
 from django.db import transaction as db_transaction
 from django.db.models import Prefetch, Sum
@@ -6,6 +9,15 @@ from ...finance.models.dinheiro import BankAccount
 from ...expenses.models.expenses import ParcelaDespesa
 from ...other_income.models.outras_entradas import OutraEntradaInstallment
 from ..models.motor import SimulacaoPrioridade, ItemSimulacaoPrioridade
+
+_AVISOS_PATH = os.path.join(os.path.dirname(__file__), "avisos_prioridade.json")
+with open(_AVISOS_PATH, encoding="utf-8") as _f:
+    _AVISOS: dict = json.load(_f)
+
+
+def _norm(s: str) -> str:
+    """Normaliza string para lookup no JSON: sem acentos, minúsculo, sem espaços extras."""
+    return unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode().lower().strip()
 
 
 class MotorPrioridadeEngine:
@@ -43,6 +55,14 @@ class MotorPrioridadeEngine:
         result = BankAccount.objects.filter(firm=self.firm).aggregate(total=Sum("current_balance"))
         return result["total"] or Decimal("0.00")
 
+    def _obter_aviso(self, category: str, subcategory: str = "") -> str | None:
+        cat_data = _AVISOS.get(str(category).upper(), {})
+        if subcategory:
+            aviso = cat_data.get(_norm(subcategory))
+            if aviso:
+                return aviso
+        return cat_data.get("_aviso_padrao")
+
     def _sort_key(self, p):
         priority = str(p.expense.priority).strip().upper()
         category = str(p.expense.category).strip().upper()
@@ -72,6 +92,7 @@ class MotorPrioridadeEngine:
             "due_date": parcela.due_date.strftime("%Y-%m-%d"),
             "amount_snapshot": float(amount if amount is not None else parcela.amount),
             "late_interest_snapshot": float(interest if interest is not None else parcela.late_interest_cost),
+            "aviso": self._obter_aviso(parcela.expense.category, parcela.expense.subcategory),
         }
         if status is not None:
             item["status_recomendacao"] = status
@@ -92,6 +113,7 @@ class MotorPrioridadeEngine:
             "late_interest_snapshot": float(inst.late_interest_cost),
             "status_recomendacao": status,
             "saldo_pos_pagamento": float(saldo_pos),
+            "aviso": self._obter_aviso("OUTRAS_ENTRADAS"),
         }
 
     def _obter_parcelas_periodo(self, ano, mes, exclude_ids=None):
@@ -143,7 +165,6 @@ class MotorPrioridadeEngine:
         recomendados, nao_cobertos = [], []
 
         if simulacao_salva:
-            # Processar na ordem exata definida pelo usuario
             parcelas_na_simulacao = set()
             for item in simulacao_salva.items.all():
                 parcelas_na_simulacao.add(item.parcela_id)
@@ -153,7 +174,6 @@ class MotorPrioridadeEngine:
                     amount=item.amount_snapshot, interest=item.late_interest_snapshot,
                 )
                 (recomendados if status == "RECOMENDADO" else nao_cobertos).append(entry)
-            # Parcelas criadas depois que a simulacao foi salva: appenda por prioridade
             rankeaveis, pendentes_list = self._obter_parcelas_periodo(ano, mes, exclude_ids=parcelas_na_simulacao)
         else:
             rankeaveis, pendentes_list = self._obter_parcelas_periodo(ano, mes)
