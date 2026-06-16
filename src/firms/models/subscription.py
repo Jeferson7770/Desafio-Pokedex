@@ -37,6 +37,9 @@ class FirmSubscription(models.Model):
     status = models.CharField(max_length=20, choices=SubscriptionStatus.choices, default=SubscriptionStatus.TRIAL)
     trial_ends_at = models.DateTimeField(blank=True, null=True, help_text="End of free trial period")
     current_period_end = models.DateTimeField(blank=True, null=True, help_text="Current cycle expiration date")
+    cancel_reason = models.CharField(max_length=50, blank=True, null=True, help_text="Motivo selecionado no cancelamento")
+    cancel_feedback = models.TextField(blank=True, null=True, help_text="Texto livre do cancelamento")
+    cancelled_at = models.DateTimeField(blank=True, null=True, help_text="Quando o cancelamento foi solicitado")
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

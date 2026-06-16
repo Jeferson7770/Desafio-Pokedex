@@ -2,8 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.db import transaction
+from django.utils import timezone
+
+import stripe as stripe_sdk
+from decouple import config
 
 from ...finance.services.stripe_service import StripeService
 from ...firms.models.subscription import Plan, FirmSubscription
@@ -161,6 +165,66 @@ class CriarAssinaturaView(APIView):
                 properties={"plan_id": plan.id, "plan_name": plan.name, "motivo_erro": f"erro_gateway: {str(e)}"},
             )
             raise e
+
+
+class CancelarAssinaturaView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        reason = request.data.get("reason", "")
+        feedback = request.data.get("feedback", "")
+
+        membership = request.user.firm_memberships.first()
+        if not membership:
+            raise ValidationError({"detail": "Usuário sem escritório associado."})
+
+        try:
+            sub = membership.firm.subscription
+        except FirmSubscription.DoesNotExist:
+            raise ValidationError({"detail": "Nenhuma assinatura encontrada para este escritório."})
+
+        if sub.status != FirmSubscription.SubscriptionStatus.ACTIVE:
+            track_event(
+                user=request.user,
+                event_name="assinatura_cancelamento_falha",
+                properties={"motivo_erro": "status_nao_ativo", "status_atual": sub.status},
+            )
+            raise PermissionDenied("Apenas assinaturas ativas podem ser canceladas.")
+
+        if not sub.stripe_subscription_id:
+            track_event(
+                user=request.user,
+                event_name="assinatura_cancelamento_falha",
+                properties={"motivo_erro": "stripe_subscription_id_ausente"},
+            )
+            raise ValidationError({"detail": "Assinatura sem ID Stripe — entre em contato com o suporte."})
+
+        stripe_sdk.api_key = config("STRIPE_SECRET_KEY")
+        stripe_sdk.Subscription.modify(
+            sub.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+
+        sub.cancel_reason = reason or None
+        sub.cancel_feedback = feedback or None
+        sub.cancelled_at = timezone.now()
+        sub.save(update_fields=["cancel_reason", "cancel_feedback", "cancelled_at", "updated_at"])
+
+        track_event(
+            user=request.user,
+            event_name="assinatura_cancelamento_solicitado",
+            properties={
+                "stripe_subscription_id": sub.stripe_subscription_id,
+                "cancel_reason": reason,
+                "tem_feedback": bool(feedback),
+                "current_period_end": sub.current_period_end.isoformat() if sub.current_period_end else None,
+            },
+        )
+
+        return Response(
+            {"detail": "Assinatura cancelada ao fim do período."},
+            status=status.HTTP_200_OK,
+        )
 
 
 class ListarPlanosView(APIView):
