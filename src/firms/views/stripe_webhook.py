@@ -143,6 +143,17 @@ class StripeWebhookView(APIView):
             subscription.current_period_end = datetime.fromtimestamp(period_end, tz=timezone.utc)
             update_fields.append("current_period_end")
 
+        # Se cancel_at_period_end=True chegou via webhook (ex: cancelamento feito fora do app),
+        # garante que cancelled_at é preenchido mesmo que o endpoint interno não tenha sido chamado.
+        cancel_at_period_end = _attr(stripe_sub, "cancel_at_period_end")
+        if cancel_at_period_end and not subscription.cancelled_at:
+            subscription.cancelled_at = datetime.now(tz=timezone.utc)
+            update_fields.append("cancelled_at")
+            track_system_event("stripe_webhook_cancelamento_agendado", {
+                "stripe_subscription_id": stripe_sub_id,
+                "current_period_end": subscription.current_period_end.isoformat() if subscription.current_period_end else None,
+            })
+
         subscription.save(update_fields=update_fields)
         logger.info("Stripe webhook: FirmSubscription %s atualizada (event=%s)", subscription.id, event_type)
         self._track(subscription, event_type)
