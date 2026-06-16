@@ -9,6 +9,25 @@ class StripeService:
         self.publishable_key = config("STRIPE_PUBLISHABLE_KEY")
         stripe.api_key = self.secret_key
 
+    @staticmethod
+    def _resolve_cycle(recurring) -> str:
+        if not recurring:
+            return "MONTHLY"
+        interval = getattr(recurring, "interval", None)
+        count = getattr(recurring, "interval_count", 1) or 1
+        if interval == "year":
+            return "ANNUALLY"
+        if interval == "week":
+            return "WEEKLY"
+        # interval == "month"
+        if count >= 12:
+            return "ANNUALLY"
+        if count >= 6:
+            return "SEMIANNUALLY"
+        if count >= 3:
+            return "QUARTERLY"
+        return "MONTHLY"
+
     def listar_planos(self):
         try:
             prices = stripe.Price.list(
@@ -20,27 +39,19 @@ class StripeService:
         except stripe.StripeError as e:
             raise ValidationError({"detail": f"Falha ao listar planos na Stripe: {str(e)}"})
 
-        _cycle_map = {
-            "month": "MONTHLY",
-            "year": "ANNUAL",
-            "week": "WEEKLY",
-            "day": "DAILY",
-        }
-
         planos = []
         for price in prices.data:
             product = price.product
             if not isinstance(product, stripe.Product) or not product.active:
                 continue
 
-            interval = price.recurring.interval if price.recurring else None
             planos.append({
                 "id": price.id,
                 "name": product.name,
                 "description": product.description,
                 "price": price.unit_amount,
                 "currency": price.currency.upper(),
-                "cycle": _cycle_map.get(interval, interval.upper() if interval else None),
+                "cycle": self._resolve_cycle(price.recurring),
                 "imageUrl": product.images[0] if product.images else None,
                 "status": "ACTIVE" if price.active else "INACTIVE",
             })

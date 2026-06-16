@@ -28,25 +28,6 @@ class CriarAssinaturaView(APIView):
 
         return Plan.objects.filter(stripe_price_id=plan_identifier, is_active=True).first()
 
-    @staticmethod
-    def _stripe_cycle(recurring):
-        if not recurring:
-            return Plan.CycleType.MONTHLY
-        interval = getattr(recurring, "interval", None)
-        count = getattr(recurring, "interval_count", 1) or 1
-        if interval == "year":
-            return Plan.CycleType.ANNUALLY
-        if interval == "week":
-            return Plan.CycleType.WEEKLY
-        # interval == "month"
-        if count >= 12:
-            return Plan.CycleType.ANNUALLY
-        if count >= 6:
-            return Plan.CycleType.SEMIANNUALLY
-        if count >= 3:
-            return Plan.CycleType.QUARTERLY
-        return Plan.CycleType.MONTHLY
-
     def _bootstrap_plan_from_stripe_price(self, stripe_price_id):
         defaults = {
             "name": f"Stripe {stripe_price_id[:40]}",
@@ -61,7 +42,7 @@ class CriarAssinaturaView(APIView):
             price = stripe_sdk.Price.retrieve(stripe_price_id, expand=["product"])
             defaults["name"] = getattr(price.product, "name", defaults["name"])
             defaults["price"] = str(int(getattr(price, "unit_amount", 0) or 0) / 100)
-            defaults["cycle"] = self._stripe_cycle(getattr(price, "recurring", None))
+            defaults["cycle"] = StripeService._resolve_cycle(getattr(price, "recurring", None))
             defaults["is_active"] = getattr(price, "active", True)
         except Exception:
             pass
