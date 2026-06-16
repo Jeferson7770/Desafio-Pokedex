@@ -34,6 +34,7 @@ class RegisterView(APIView):
             EmailService().enviar_boas_vindas(
                 user_email=user.email,
                 user_name=user.first_name or user.email.split("@")[0],
+                user_id=user.id,
             )
 
             return Response({
