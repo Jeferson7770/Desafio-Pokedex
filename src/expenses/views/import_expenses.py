@@ -18,7 +18,7 @@ class ExpenseImportView(FirmMixin, APIView):
         normalized["is_active"] = True
 
         if normalized.get("category") is None:
-            normalized["category"] = Expense.Category.OPERACIONAL
+            normalized["category"] = Expense.Category.A_CLASSIFICAR
 
         installment_value = normalized.get("installment_value")
         total_installments = normalized.get("total_installments", 1)

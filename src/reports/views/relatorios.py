@@ -19,9 +19,8 @@ from ...users.utils.firm_mixin import FirmMixin
 MONTHS_PT = {1:"JAN",2:"FEV",3:"MAR",4:"ABR",5:"MAI",6:"JUN",
              7:"JUL",8:"AGO",9:"SET",10:"OUT",11:"NOV",12:"DEZ"}
 
-_PAYROLL_CATS = {Expense.Category.PESSOAL_E_REMUNERACAO, Expense.Category.PESSOAS}
-_TAX_CATS     = {Expense.Category.FISCAL_E_OBRIGACOES_LEGAIS, Expense.Category.IMPOSTOS,
-                 Expense.Category.FINANCEIRA}
+_PAYROLL_CATS = {Expense.Category.PESSOAL_E_REMUNERACAO}
+_TAX_CATS     = {Expense.Category.FISCAL_E_OBRIGACOES_LEGAIS, Expense.Category.FINANCEIRA}
 _VARIABLE_CATS = {Expense.Category.CUSTAS_PROCESSUAIS_E_JUDICIAIS,
                   Expense.Category.MOBILIDADE_E_DESLOCAMENTO}
 

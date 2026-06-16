@@ -9,12 +9,50 @@ from ..models.motor import SimulacaoPrioridade, ItemSimulacaoPrioridade
 
 
 class MotorPrioridadeEngine:
+    # Peso de cada nível de prioridade (menor = paga primeiro)
     PRIORITY_WEIGHTS = {
+        "CRITICA": 1,
+        "ESPECIAL": 2,
+        "ALTA": 3,
+        "MEDIA_ALTA": 4,
+        "MEDIA": 5,
+        "MEDIA_BAIXA": 6,
+        "BAIXA": 7,
+        "INDEFINIDA": 99,
+        # legado — mapeado para equivalentes mais próximos
         "LEGAL": 1,
-        "CRITICO": 1,
-        "LEGAL / CRÍTICO": 1,
-        "OPERACIONAL": 2,
-        "OPCIONAL": 3,
+        "OPERACIONAL": 5,
+        "OPCIONAL": 7,
+    }
+
+    # Ordem da categoria dentro do mesmo nível de prioridade (spec: matriz consolidada)
+    CATEGORY_ORDER = {
+        "PESSOAL_E_REMUNERACAO": 1,
+        "FISCAL_E_OBRIGACOES_LEGAIS": 2,
+        "CUSTAS_PROCESSUAIS_E_JUDICIAIS": 3,
+        "ESTRUTURA_E_OPERACAO": 4,
+        "TECNOLOGIA_E_ASSINATURA": 5,
+        "FINANCEIRA": 6,
+        "MARKETING_E_AQUISICAO": 7,
+        "MOBILIDADE_E_DESLOCAMENTO": 8,
+        "INVESTIMENTOS_NO_ESCRITORIO": 9,
+        "CAPACITACAO_E_DESENVOLVIMENTO": 10,
+        "A_CLASSIFICAR": 99,
+    }
+
+    # Prioridade padrão por categoria (usada como referência; advogado pode ajustar)
+    CATEGORY_DEFAULT_PRIORITY = {
+        "PESSOAL_E_REMUNERACAO": "CRITICA",
+        "FISCAL_E_OBRIGACOES_LEGAIS": "CRITICA",
+        "CUSTAS_PROCESSUAIS_E_JUDICIAIS": "ESPECIAL",
+        "ESTRUTURA_E_OPERACAO": "ALTA",
+        "TECNOLOGIA_E_ASSINATURA": "MEDIA_ALTA",
+        "FINANCEIRA": "MEDIA",
+        "MARKETING_E_AQUISICAO": "MEDIA",
+        "MOBILIDADE_E_DESLOCAMENTO": "MEDIA_BAIXA",
+        "INVESTIMENTOS_NO_ESCRITORIO": "BAIXA",
+        "CAPACITACAO_E_DESENVOLVIMENTO": "BAIXA",
+        "A_CLASSIFICAR": "INDEFINIDA",
     }
 
     def __init__(self, firm):
@@ -68,33 +106,45 @@ class MotorPrioridadeEngine:
             data["status_recomendacao"] = status_recomendacao
         return data
 
-    def _obter_parcelas_ordenadas_padrao(self, ano, mes):
+    def _criterio_ordenacao(self, p):
+        prioridade = str(p.expense.priority).strip().upper()
+        categoria = str(p.expense.category).strip().upper()
+
+        peso_prioridade = self.PRIORITY_WEIGHTS.get(prioridade, 50)
+        ordem_categoria = self.CATEGORY_ORDER.get(categoria, 50)
+
+        taxa_mensal = p.expense.interest_rate_month or Decimal("0.00")
+        juro_diario = (p.amount * (taxa_mensal / Decimal("100.00"))) / Decimal("30")
+
+        # 1º nível de prioridade · 2º ordem da categoria dentro do mesmo nível ·
+        # 3º maior custo de atraso/dia (desc) · 4º vencimento mais próximo
+        return (peso_prioridade, ordem_categoria, -juro_diario, p.due_date)
+
+    def _obter_parcelas_periodo(self, ano, mes):
+        """Retorna (rankeaveis_ordenadas, pendentes_categorizacao) para o período."""
         start = datetime.date(ano, mes, 1)
         end = datetime.date(ano, mes + 1, 1) if mes < 12 else datetime.date(ano + 1, 1, 1)
-        parcelas = ParcelaDespesa.objects.filter(
-            expense__firm=self.firm,
-            is_paid=False,
-            due_date__gte=start,
-            due_date__lt=end,
-            expense__is_active=True
-        ).select_related("expense")
+        parcelas = list(
+            ParcelaDespesa.objects.filter(
+                expense__firm=self.firm,
+                is_paid=False,
+                due_date__gte=start,
+                due_date__lt=end,
+                expense__is_active=True,
+            ).select_related("expense")
+        )
 
-        def criterio_ordenacao(p):
-            prioridade_crua = str(p.expense.priority).strip().upper()
-
-            if "LEGAL" in prioridade_crua or "CRÍTICO" in prioridade_crua or "CRITICO" in prioridade_crua:
-                peso_prioridade = 1
-            elif "OPERACIONAL" in prioridade_crua:
-                peso_prioridade = 2
-            else:
-                peso_prioridade = 3
-
-            taxa_mensal = p.expense.interest_rate_month or Decimal("0.00")
-            juro_diario = (p.amount * (taxa_mensal / Decimal("100.00"))) / Decimal("30")
-
-            return (peso_prioridade, -juro_diario, p.due_date)
-
-        return sorted(parcelas, key=criterio_ordenacao)
+        rankeaveis = [
+            p for p in parcelas
+            if str(p.expense.priority).upper() not in ("INDEFINIDA", "")
+            and str(p.expense.category).upper() != "A_CLASSIFICAR"
+        ]
+        pendentes = [
+            p for p in parcelas
+            if str(p.expense.priority).upper() in ("INDEFINIDA", "")
+            or str(p.expense.category).upper() == "A_CLASSIFICAR"
+        ]
+        return sorted(rankeaveis, key=self._criterio_ordenacao), pendentes
 
     def calcular_dinamico(self, ano, mes):
         reference_date = datetime.date(ano, mes, 1)
@@ -132,15 +182,28 @@ class MotorPrioridadeEngine:
 
             saldo_restante = Decimal(str(simulacao_salva.saldo_restante_pos_pagamentos))
 
-            novas_parcelas = ParcelaDespesa.objects.filter(
-                expense__firm=self.firm,
-                is_paid=False,
-                due_date__gte=start,
-                due_date__lt=end,
-                expense__is_active=True,
-            ).exclude(id__in=parcelas_na_simulacao).select_related("expense")
+            novas_parcelas = list(
+                ParcelaDespesa.objects.filter(
+                    expense__firm=self.firm,
+                    is_paid=False,
+                    due_date__gte=start,
+                    due_date__lt=end,
+                    expense__is_active=True,
+                ).exclude(id__in=parcelas_na_simulacao).select_related("expense")
+            )
 
-            for parcela in sorted(novas_parcelas, key=lambda p: p.due_date):
+            novas_rankeaveis = [
+                p for p in novas_parcelas
+                if str(p.expense.priority).upper() not in ("INDEFINIDA", "")
+                and str(p.expense.category).upper() != "A_CLASSIFICAR"
+            ]
+            novas_pendentes = [
+                p for p in novas_parcelas
+                if str(p.expense.priority).upper() in ("INDEFINIDA", "")
+                or str(p.expense.category).upper() == "A_CLASSIFICAR"
+            ]
+
+            for parcela in sorted(novas_rankeaveis, key=self._criterio_ordenacao):
                 if saldo_restante >= parcela.amount:
                     saldo_restante -= parcela.amount
                     recomendados.append(self._item_de_parcela(parcela, "RECOMENDADO"))
@@ -161,10 +224,11 @@ class MotorPrioridadeEngine:
                 "saldo_restante_pos_pagamentos": float(saldo_restante),
                 "pagamentos_recomendados": recomendados,
                 "pagamentos_nao_cobertos": nao_cobertos,
+                "pendentes_categorizacao": [self._item_de_parcela(p) for p in novas_pendentes],
             }
 
         saldo_disponivel = self.obter_saldo_consolidado()
-        parcelas_ordenadas = self._obter_parcelas_ordenadas_padrao(ano, mes)
+        parcelas_ordenadas, parcelas_sem_categoria = self._obter_parcelas_periodo(ano, mes)
         outras_pendentes = self._obter_outras_entradas_pendentes(start, end)
         saldo_restante = saldo_disponivel
 
@@ -192,6 +256,7 @@ class MotorPrioridadeEngine:
             "saldo_restante_pos_pagamentos": float(saldo_restante),
             "pagamentos_recomendados": recomendados,
             "pagamentos_nao_cobertos": nao_cobertos,
+            "pendentes_categorizacao": [self._item_de_parcela(p) for p in parcelas_sem_categoria],
         }
 
     def salvar_configuracao_da_tela(self, ano, mes, itens_da_tela):
