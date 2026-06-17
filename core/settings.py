@@ -125,7 +125,7 @@ if REDIS_URL:
 else:
     CACHES = {
         "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "BACKEND": "django.core.cache.backends.dummy.DummyCache",
         }
     }
 

@@ -5,6 +5,7 @@ class FirmRefreshToken(RefreshToken):
     @classmethod
     def for_user(cls, user):
         token = super().for_user(user)
-        firm_id = user.firm_memberships.values_list("firm_id", flat=True).first()
-        token["firm_id"] = firm_id
+        membership = user.firm_memberships.values("firm_id", "firm__name").first()
+        token["firm_id"] = membership["firm_id"] if membership else None
+        token["firm_name"] = membership["firm__name"] if membership else None
         return token
