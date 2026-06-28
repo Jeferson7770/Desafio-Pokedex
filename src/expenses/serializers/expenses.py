@@ -39,6 +39,12 @@ class ExpenseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["firm", "paid_at"]
 
+    def validate_priority(self, value):
+        valid = {c[0] for c in Expense.Priority.choices}
+        if value not in valid:
+            return Expense.Priority.INDEFINIDA
+        return value
+
     def get_installment_value(self, obj) -> float:
         if obj.total_installments > 0:
             return round(float(obj.amount) / obj.total_installments, 2)
