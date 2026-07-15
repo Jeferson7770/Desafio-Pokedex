@@ -13,11 +13,7 @@ Este repositório contém a solução para o desafio técnico de integração de
 
 <img width="1866" height="874" alt="image" src="https://github.com/user-attachments/assets/96648a75-a2ba-47ae-81c5-b4493876a756" />
 
-## 📊 Insights de Negócio
-
-Aqui estão as respostas extraídas através da análise dos dados:
-
-### 💼 Respostas para o Time de Produto
+## 📊 Respostas
 
 ```text
 1. Pokémon com maior soma de stats (BST):
@@ -34,6 +30,8 @@ Aqui estão as respostas extraídas através da análise dos dados:
 
 5. Time dos Sonhos (6 melhores somas de stats):
    -> Mewtwo (680), Dragonite (600), Tyranitar (600), Salamence (600), Metagross (600), Garchomp (600)
+```
+
 
 ## ⚙️ Como Executar
 
