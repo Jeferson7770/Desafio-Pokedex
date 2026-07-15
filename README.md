@@ -10,7 +10,9 @@ Este repositório contém a solução para o desafio técnico de integração de
 * `dashboard.html`: Painel interativo gerado para visualização dinâmica dos dados.
 * `main.py`: Script principal que realiza a extração, tratamento de erros, geração dos arquivos e cache local.
 
-![alt text](image.png)
+
+<img width="1866" height="874" alt="image" src="https://github.com/user-attachments/assets/96648a75-a2ba-47ae-81c5-b4493876a756" />
+
 
 ## ⚙️ Como Executar
 
