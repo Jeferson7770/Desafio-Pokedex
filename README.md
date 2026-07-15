@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # fincecore
 
 Official Fince backend: a financial management platform for lawyers and law firms.
@@ -313,3 +314,21 @@ Distributed under AGPLv3-or-later.
 
 - Full text: `LICENSE`
 - Community conduct: `CODE_OF_CONDUCT.md`
+=======
+# Desafio Técnico - Pokédex Analítica 🚀
+
+Este repositório contém a solução para o desafio técnico de integração de dados com a PokeAPI.
+
+## 📂 Estrutura do Projeto
+
+* `pokemon_base.csv`: Lista inicial de Pokémons.
+* `pokemon_completo.csv`: Arquivo final com dados consolidados e enriquecidos via PokeAPI.
+* `respostas.txt`: Respostas para as perguntas de negócio do Time de Produto (incluindo o bônus).
+* `dashboard.html`: Painel interativo gerado para visualização dinâmica dos dados.
+* `main.py`: Script principal que realiza a extração, tratamento de erros, geração dos arquivos e cache local.
+
+## ⚙️ Como Executar
+
+1. Instale as dependências: `pip install requests`
+2. Execute o script: `python main.py`
+>>>>>>> 37bf79c06155bc6007958c258749d0b8fae94d9f
