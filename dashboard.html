@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokédex Analítica - Startup Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0f172a;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4f46e5;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col">
+
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div>
+                <span class="text-xs font-bold tracking-widest text-indigo-400 uppercase">ESTÁGIO DE DADOS - STARTUP BI</span>
+                <h1 class="text-2xl font-extrabold text-white tracking-tight">Dashboard Analítico: Balanceamento</h1>
+            </div>
+            <span class="bg-indigo-500/10 text-indigo-400 text-xs font-semibold px-3 py-1.5 rounded-full border border-indigo-500/20">
+                PokeAPI V2 Conectada
+            </span>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <section class="lg:col-span-4 flex flex-col gap-3 h-[calc(100vh-140px)] overflow-y-auto pr-2">
+            <h2 class="text-sm font-semibold tracking-wider text-slate-400 uppercase mb-2">Criaturas Enriquecidas (30)</h2>
+            <div id="poke-list" class="space-y-3"></div>
+        </section>
+
+        <section class="lg:col-span-8 bg-slate-900/40 border border-slate-800 rounded-2xl p-6 lg:p-8 flex flex-col justify-between">
+            <div id="active-panel" class="grid grid-cols-1 md:grid-cols-12 gap-8"></div>
+        </section>
+
+    </main>
+
+    <script>
+        const pokemonData = [
+    {
+        "id": "6",
+        "nome": "Charizard",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",
+        "tipos": [
+            "fire",
+            "flying"
+        ],
+        "stats": {
+            "HP": 78,
+            "Ataque": 84,
+            "Defesa": 78,
+            "Ataque Esp.": 109,
+            "Defesa Esp.": 85,
+            "Velocidade": 100
+        },
+        "total": 534,
+        "habilidade": "Blaze",
+        "altura": 1.7,
+        "peso": 90.5,
+        "vantagens": [
+            "bug",
+            "fighting",
+            "grass",
+            "ice",
+            "steel"
+        ],
+        "fraquezas": [
+            "electric",
+            "ground",
+            "ice",
+            "rock",
+            "water"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "9",
+        "nome": "Blastoise",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png",
+        "tipos": [
+            "water"
+        ],
+        "stats": {
+            "HP": 79,
+            "Ataque": 83,
+            "Defesa": 100,
+            "Ataque Esp.": 85,
+            "Defesa Esp.": 105,
+            "Velocidade": 78
+        },
+        "total": 530,
+        "habilidade": "Torrent",
+        "altura": 1.6,
+        "peso": 85.5,
+        "vantagens": [
+            "fire",
+            "ground",
+            "rock"
+        ],
+        "fraquezas": [
+            "electric",
+            "grass"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "25",
+        "nome": "Pikachu",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",
+        "tipos": [
+            "electric"
+        ],
+        "stats": {
+            "HP": 35,
+            "Ataque": 55,
+            "Defesa": 40,
+            "Ataque Esp.": 50,
+            "Defesa Esp.": 50,
+            "Velocidade": 90
+        },
+        "total": 320,
+        "habilidade": "Static",
+        "altura": 0.4,
+        "peso": 6.0,
+        "vantagens": [
+            "flying",
+            "water"
+        ],
+        "fraquezas": [
+            "ground"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "26",
+        "nome": "Raichu",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/26.png",
+        "tipos": [
+            "electric"
+        ],
+        "stats": {
+            "HP": 60,
+            "Ataque": 90,
+            "Defesa": 55,
+            "Ataque Esp.": 90,
+            "Defesa Esp.": 80,
+            "Velocidade": 110
+        },
+        "total": 485,
+        "habilidade": "Static",
+        "altura": 0.8,
+        "peso": 30.0,
+        "vantagens": [
+            "flying",
+            "water"
+        ],
+        "fraquezas": [
+            "ground"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "31",
+        "nome": "Nidoqueen",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/31.png",
+        "tipos": [
+            "poison",
+            "ground"
+        ],
+        "stats": {
+            "HP": 90,
+            "Ataque": 92,
+            "Defesa": 87,
+            "Ataque Esp.": 75,
+            "Defesa Esp.": 85,
+            "Velocidade": 76
+        },
+        "total": 505,
+        "habilidade": "Poison point",
+        "altura": 1.3,
+        "peso": 60.0,
+        "vantagens": [
+            "electric",
+            "fairy",
+            "fire",
+            "grass",
+            "poison",
+            "rock",
+            "steel"
+        ],
+        "fraquezas": [
+            "grass",
+            "ground",
+            "ice",
+            "psychic",
+            "water"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "34",
+        "nome": "Nidoking",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/34.png",
+        "tipos": [
+            "poison",
+            "ground"
+        ],
+        "stats": {
+            "HP": 81,
+            "Ataque": 102,
+            "Defesa": 77,
+            "Ataque Esp.": 85,
+            "Defesa Esp.": 75,
+            "Velocidade": 85
+        },
+        "total": 505,
+        "habilidade": "Poison point",
+        "altura": 1.4,
+        "peso": 62.0,
+        "vantagens": [
+            "electric",
+            "fairy",
+            "fire",
+            "grass",
+            "poison",
+            "rock",
+            "steel"
+        ],
+        "fraquezas": [
+            "grass",
+            "ground",
+            "ice",
+            "psychic",
+            "water"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "59",
+        "nome": "Arcanine",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/59.png",
+        "tipos": [
+            "fire"
+        ],
+        "stats": {
+            "HP": 90,
+            "Ataque": 110,
+            "Defesa": 80,
+            "Ataque Esp.": 100,
+            "Defesa Esp.": 80,
+            "Velocidade": 95
+        },
+        "total": 555,
+        "habilidade": "Intimidate",
+        "altura": 1.9,
+        "peso": 155.0,
+        "vantagens": [
+            "bug",
+            "grass",
+            "ice",
+            "steel"
+        ],
+        "fraquezas": [
+            "ground",
+            "rock",
+            "water"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "65",
+        "nome": "Alakazam",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/65.png",
+        "tipos": [
+            "psychic"
+        ],
+        "stats": {
+            "HP": 55,
+            "Ataque": 50,
+            "Defesa": 45,
+            "Ataque Esp.": 135,
+            "Defesa Esp.": 95,
+            "Velocidade": 120
+        },
+        "total": 500,
+        "habilidade": "Synchronize",
+        "altura": 1.5,
+        "peso": 48.0,
+        "vantagens": [
+            "fighting",
+            "poison"
+        ],
+        "fraquezas": [
+            "bug",
+            "dark",
+            "ghost"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "68",
+        "nome": "Machamp",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/68.png",
+        "tipos": [
+            "fighting"
+        ],
+        "stats": {
+            "HP": 90,
+            "Ataque": 130,
+            "Defesa": 80,
+            "Ataque Esp.": 65,
+            "Defesa Esp.": 85,
+            "Velocidade": 55
+        },
+        "total": 505,
+        "habilidade": "Guts",
+        "altura": 1.6,
+        "peso": 130.0,
+        "vantagens": [
+            "dark",
+            "ice",
+            "normal",
+            "rock",
+            "steel"
+        ],
+        "fraquezas": [
+            "fairy",
+            "flying",
+            "psychic"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "76",
+        "nome": "Golem",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/76.png",
+        "tipos": [
+            "rock",
+            "ground"
+        ],
+        "stats": {
+            "HP": 80,
+            "Ataque": 120,
+            "Defesa": 130,
+            "Ataque Esp.": 55,
+            "Defesa Esp.": 65,
+            "Velocidade": 45
+        },
+        "total": 495,
+        "habilidade": "Rock head",
+        "altura": 1.4,
+        "peso": 300.0,
+        "vantagens": [
+            "bug",
+            "electric",
+            "fire",
+            "flying",
+            "ice",
+            "poison",
+            "rock",
+            "steel"
+        ],
+        "fraquezas": [
+            "fighting",
+            "grass",
+            "ground",
+            "ice",
+            "steel",
+            "water"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "94",
+        "nome": "Gengar",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/94.png",
+        "tipos": [
+            "ghost",
+            "poison"
+        ],
+        "stats": {
+            "HP": 60,
+            "Ataque": 65,
+            "Defesa": 60,
+            "Ataque Esp.": 130,
+            "Defesa Esp.": 75,
+            "Velocidade": 110
+        },
+        "total": 500,
+        "habilidade": "Cursed body",
+        "altura": 1.5,
+        "peso": 40.5,
+        "vantagens": [
+            "fairy",
+            "ghost",
+            "grass",
+            "psychic"
+        ],
+        "fraquezas": [
+            "dark",
+            "ghost",
+            "ground",
+            "psychic"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "103",
+        "nome": "Exeggutor",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/103.png",
+        "tipos": [
+            "grass",
+            "psychic"
+        ],
+        "stats": {
+            "HP": 95,
+            "Ataque": 95,
+            "Defesa": 85,
+            "Ataque Esp.": 125,
+            "Defesa Esp.": 75,
+            "Velocidade": 55
+        },
+        "total": 530,
+        "habilidade": "Chlorophyll",
+        "altura": 2.0,
+        "peso": 120.0,
+        "vantagens": [
+            "fighting",
+            "ground",
+            "poison",
+            "rock",
+            "water"
+        ],
+        "fraquezas": [
+            "bug",
+            "dark",
+            "fire",
+            "flying",
+            "ghost",
+            "ice",
+            "poison"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "130",
+        "nome": "Gyarados",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/130.png",
+        "tipos": [
+            "water",
+            "flying"
+        ],
+        "stats": {
+            "HP": 95,
+            "Ataque": 125,
+            "Defesa": 79,
+            "Ataque Esp.": 60,
+            "Defesa Esp.": 100,
+            "Velocidade": 81
+        },
+        "total": 540,
+        "habilidade": "Intimidate",
+        "altura": 6.5,
+        "peso": 235.0,
+        "vantagens": [
+            "bug",
+            "fighting",
+            "fire",
+            "grass",
+            "ground",
+            "rock"
+        ],
+        "fraquezas": [
+            "electric",
+            "grass",
+            "ice",
+            "rock"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "131",
+        "nome": "Lapras",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/131.png",
+        "tipos": [
+            "water",
+            "ice"
+        ],
+        "stats": {
+            "HP": 130,
+            "Ataque": 85,
+            "Defesa": 80,
+            "Ataque Esp.": 85,
+            "Defesa Esp.": 95,
+            "Velocidade": 60
+        },
+        "total": 535,
+        "habilidade": "Water absorb",
+        "altura": 2.5,
+        "peso": 220.0,
+        "vantagens": [
+            "dragon",
+            "fire",
+            "flying",
+            "grass",
+            "ground",
+            "rock"
+        ],
+        "fraquezas": [
+            "electric",
+            "fighting",
+            "fire",
+            "grass",
+            "rock",
+            "steel"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "143",
+        "nome": "Snorlax",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/143.png",
+        "tipos": [
+            "normal"
+        ],
+        "stats": {
+            "HP": 160,
+            "Ataque": 110,
+            "Defesa": 65,
+            "Ataque Esp.": 65,
+            "Defesa Esp.": 110,
+            "Velocidade": 30
+        },
+        "total": 540,
+        "habilidade": "Immunity",
+        "altura": 2.1,
+        "peso": 460.0,
+        "vantagens": [],
+        "fraquezas": [
+            "fighting"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "149",
+        "nome": "Dragonite",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/149.png",
+        "tipos": [
+            "dragon",
+            "flying"
+        ],
+        "stats": {
+            "HP": 91,
+            "Ataque": 134,
+            "Defesa": 95,
+            "Ataque Esp.": 100,
+            "Defesa Esp.": 100,
+            "Velocidade": 80
+        },
+        "total": 600,
+        "habilidade": "Inner focus",
+        "altura": 2.2,
+        "peso": 210.0,
+        "vantagens": [
+            "bug",
+            "dragon",
+            "fighting",
+            "grass"
+        ],
+        "fraquezas": [
+            "dragon",
+            "electric",
+            "fairy",
+            "ice",
+            "rock"
+        ],
+        "dream_team": true
+    },
+    {
+        "id": "150",
+        "nome": "Mewtwo",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png",
+        "tipos": [
+            "psychic"
+        ],
+        "stats": {
+            "HP": 106,
+            "Ataque": 110,
+            "Defesa": 90,
+            "Ataque Esp.": 154,
+            "Defesa Esp.": 90,
+            "Velocidade": 130
+        },
+        "total": 680,
+        "habilidade": "Pressure",
+        "altura": 2.0,
+        "peso": 122.0,
+        "vantagens": [
+            "fighting",
+            "poison"
+        ],
+        "fraquezas": [
+            "bug",
+            "dark",
+            "ghost"
+        ],
+        "dream_team": true
+    },
+    {
+        "id": "157",
+        "nome": "Typhlosion",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/157.png",
+        "tipos": [
+            "fire"
+        ],
+        "stats": {
+            "HP": 78,
+            "Ataque": 84,
+            "Defesa": 78,
+            "Ataque Esp.": 109,
+            "Defesa Esp.": 85,
+            "Velocidade": 100
+        },
+        "total": 534,
+        "habilidade": "Blaze",
+        "altura": 1.7,
+        "peso": 79.5,
+        "vantagens": [
+            "bug",
+            "grass",
+            "ice",
+            "steel"
+        ],
+        "fraquezas": [
+            "ground",
+            "rock",
+            "water"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "160",
+        "nome": "Feraligatr",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/160.png",
+        "tipos": [
+            "water"
+        ],
+        "stats": {
+            "HP": 85,
+            "Ataque": 105,
+            "Defesa": 100,
+            "Ataque Esp.": 79,
+            "Defesa Esp.": 83,
+            "Velocidade": 78
+        },
+        "total": 530,
+        "habilidade": "Torrent",
+        "altura": 2.3,
+        "peso": 88.8,
+        "vantagens": [
+            "fire",
+            "ground",
+            "rock"
+        ],
+        "fraquezas": [
+            "electric",
+            "grass"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "196",
+        "nome": "Espeon",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/196.png",
+        "tipos": [
+            "psychic"
+        ],
+        "stats": {
+            "HP": 65,
+            "Ataque": 65,
+            "Defesa": 60,
+            "Ataque Esp.": 130,
+            "Defesa Esp.": 95,
+            "Velocidade": 110
+        },
+        "total": 525,
+        "habilidade": "Synchronize",
+        "altura": 0.9,
+        "peso": 26.5,
+        "vantagens": [
+            "fighting",
+            "poison"
+        ],
+        "fraquezas": [
+            "bug",
+            "dark",
+            "ghost"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "212",
+        "nome": "Scizor",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/212.png",
+        "tipos": [
+            "bug",
+            "steel"
+        ],
+        "stats": {
+            "HP": 70,
+            "Ataque": 130,
+            "Defesa": 100,
+            "Ataque Esp.": 55,
+            "Defesa Esp.": 80,
+            "Velocidade": 65
+        },
+        "total": 500,
+        "habilidade": "Swarm",
+        "altura": 1.8,
+        "peso": 118.0,
+        "vantagens": [
+            "dark",
+            "fairy",
+            "grass",
+            "ice",
+            "psychic",
+            "rock"
+        ],
+        "fraquezas": [
+            "fighting",
+            "fire",
+            "flying",
+            "ground",
+            "rock"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "248",
+        "nome": "Tyranitar",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/248.png",
+        "tipos": [
+            "rock",
+            "dark"
+        ],
+        "stats": {
+            "HP": 100,
+            "Ataque": 134,
+            "Defesa": 110,
+            "Ataque Esp.": 95,
+            "Defesa Esp.": 100,
+            "Velocidade": 61
+        },
+        "total": 600,
+        "habilidade": "Sand stream",
+        "altura": 2.0,
+        "peso": 202.0,
+        "vantagens": [
+            "bug",
+            "fire",
+            "flying",
+            "ghost",
+            "ice",
+            "psychic"
+        ],
+        "fraquezas": [
+            "bug",
+            "fairy",
+            "fighting",
+            "grass",
+            "ground",
+            "steel",
+            "water"
+        ],
+        "dream_team": true
+    },
+    {
+        "id": "257",
+        "nome": "Blaziken",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/257.png",
+        "tipos": [
+            "fire",
+            "fighting"
+        ],
+        "stats": {
+            "HP": 80,
+            "Ataque": 120,
+            "Defesa": 70,
+            "Ataque Esp.": 110,
+            "Defesa Esp.": 70,
+            "Velocidade": 80
+        },
+        "total": 530,
+        "habilidade": "Blaze",
+        "altura": 1.9,
+        "peso": 52.0,
+        "vantagens": [
+            "bug",
+            "dark",
+            "grass",
+            "ice",
+            "normal",
+            "rock",
+            "steel"
+        ],
+        "fraquezas": [
+            "fairy",
+            "flying",
+            "ground",
+            "psychic",
+            "rock",
+            "water"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "282",
+        "nome": "Gardevoir",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/282.png",
+        "tipos": [
+            "psychic",
+            "fairy"
+        ],
+        "stats": {
+            "HP": 68,
+            "Ataque": 65,
+            "Defesa": 65,
+            "Ataque Esp.": 125,
+            "Defesa Esp.": 115,
+            "Velocidade": 80
+        },
+        "total": 518,
+        "habilidade": "Synchronize",
+        "altura": 1.6,
+        "peso": 48.4,
+        "vantagens": [
+            "dark",
+            "dragon",
+            "fighting",
+            "poison"
+        ],
+        "fraquezas": [
+            "bug",
+            "dark",
+            "ghost",
+            "poison",
+            "steel"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "306",
+        "nome": "Aggron",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/306.png",
+        "tipos": [
+            "steel",
+            "rock"
+        ],
+        "stats": {
+            "HP": 70,
+            "Ataque": 110,
+            "Defesa": 180,
+            "Ataque Esp.": 60,
+            "Defesa Esp.": 60,
+            "Velocidade": 50
+        },
+        "total": 530,
+        "habilidade": "Sturdy",
+        "altura": 2.1,
+        "peso": 360.0,
+        "vantagens": [
+            "bug",
+            "fairy",
+            "fire",
+            "flying",
+            "ice",
+            "rock"
+        ],
+        "fraquezas": [
+            "fighting",
+            "fire",
+            "grass",
+            "ground",
+            "steel",
+            "water"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "373",
+        "nome": "Salamence",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/373.png",
+        "tipos": [
+            "dragon",
+            "flying"
+        ],
+        "stats": {
+            "HP": 95,
+            "Ataque": 135,
+            "Defesa": 80,
+            "Ataque Esp.": 110,
+            "Defesa Esp.": 80,
+            "Velocidade": 100
+        },
+        "total": 600,
+        "habilidade": "Intimidate",
+        "altura": 1.5,
+        "peso": 102.6,
+        "vantagens": [
+            "bug",
+            "dragon",
+            "fighting",
+            "grass"
+        ],
+        "fraquezas": [
+            "dragon",
+            "electric",
+            "fairy",
+            "ice",
+            "rock"
+        ],
+        "dream_team": true
+    },
+    {
+        "id": "376",
+        "nome": "Metagross",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/376.png",
+        "tipos": [
+            "steel",
+            "psychic"
+        ],
+        "stats": {
+            "HP": 80,
+            "Ataque": 135,
+            "Defesa": 130,
+            "Ataque Esp.": 95,
+            "Defesa Esp.": 90,
+            "Velocidade": 70
+        },
+        "total": 600,
+        "habilidade": "Clear body",
+        "altura": 1.6,
+        "peso": 550.0,
+        "vantagens": [
+            "fairy",
+            "fighting",
+            "ice",
+            "poison",
+            "rock"
+        ],
+        "fraquezas": [
+            "bug",
+            "dark",
+            "fighting",
+            "fire",
+            "ghost",
+            "ground"
+        ],
+        "dream_team": true
+    },
+    {
+        "id": "443",
+        "nome": "Garchomp",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/445.png",
+        "tipos": [
+            "dragon",
+            "ground"
+        ],
+        "stats": {
+            "HP": 108,
+            "Ataque": 130,
+            "Defesa": 95,
+            "Ataque Esp.": 80,
+            "Defesa Esp.": 85,
+            "Velocidade": 102
+        },
+        "total": 600,
+        "habilidade": "Sand veil",
+        "altura": 1.9,
+        "peso": 95.0,
+        "vantagens": [
+            "dragon",
+            "electric",
+            "fire",
+            "poison",
+            "rock",
+            "steel"
+        ],
+        "fraquezas": [
+            "dragon",
+            "fairy",
+            "grass",
+            "ice",
+            "water"
+        ],
+        "dream_team": true
+    },
+    {
+        "id": "448",
+        "nome": "Lucario",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/448.png",
+        "tipos": [
+            "fighting",
+            "steel"
+        ],
+        "stats": {
+            "HP": 70,
+            "Ataque": 110,
+            "Defesa": 70,
+            "Ataque Esp.": 115,
+            "Defesa Esp.": 70,
+            "Velocidade": 90
+        },
+        "total": 525,
+        "habilidade": "Steadfast",
+        "altura": 1.2,
+        "peso": 54.0,
+        "vantagens": [
+            "dark",
+            "fairy",
+            "ice",
+            "normal",
+            "rock",
+            "steel"
+        ],
+        "fraquezas": [
+            "fairy",
+            "fighting",
+            "fire",
+            "flying",
+            "ground",
+            "psychic"
+        ],
+        "dream_team": false
+    },
+    {
+        "id": "658",
+        "nome": "Greninja",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/658.png",
+        "tipos": [
+            "water",
+            "dark"
+        ],
+        "stats": {
+            "HP": 72,
+            "Ataque": 95,
+            "Defesa": 67,
+            "Ataque Esp.": 103,
+            "Defesa Esp.": 71,
+            "Velocidade": 122
+        },
+        "total": 530,
+        "habilidade": "Torrent",
+        "altura": 1.5,
+        "peso": 40.0,
+        "vantagens": [
+            "fire",
+            "ghost",
+            "ground",
+            "psychic",
+            "rock"
+        ],
+        "fraquezas": [
+            "bug",
+            "electric",
+            "fairy",
+            "fighting",
+            "grass"
+        ],
+        "dream_team": false
+    }
+];
+        const typeColors = {"normal": "bg-gray-400 text-white", "fire": "bg-red-500 text-white", "water": "bg-blue-500 text-white", "electric": "bg-yellow-400 text-gray-900", "grass": "bg-green-500 text-white", "ice": "bg-blue-300 text-gray-900", "fighting": "bg-red-700 text-white", "poison": "bg-purple-500 text-white", "ground": "bg-yellow-600 text-white", "flying": "bg-indigo-400 text-white", "psychic": "bg-pink-500 text-white", "bug": "bg-green-600 text-white", "rock": "bg-yellow-700 text-white", "ghost": "bg-purple-700 text-white", "dragon": "bg-indigo-700 text-white", "steel": "bg-gray-500 text-white", "fairy": "bg-pink-300 text-gray-900", "dark": "bg-gray-800 text-white"};
+        let activeIdx = 0;
+
+        function getBadgeClass(type) {
+            return typeColors[type.toLowerCase()] || "bg-slate-600 text-white";
+        }
+
+        function renderList() {
+            const listContainer = document.getElementById("poke-list");
+            listContainer.innerHTML = pokemonData.map((poke, index) => {
+                const isActive = index === activeIdx;
+                const typesBadges = poke.tipos.map(t => 
+                    `<span class="px-2 py-0.5 text-[10px] font-bold rounded-md uppercase tracking-wider ${getBadgeClass(t)}">${t}</span>`
+                ).join(" ");
+
+                const dreamBadge = poke.dream_team 
+                    ? `<span class="bg-amber-500/10 text-amber-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-500/25">★ DREAM TEAM</span>` 
+                    : '';
+
+                return `
+                    <button onclick="setActive(${index})" class="w-full text-left transition-all duration-200 border rounded-xl p-4 flex items-center gap-4 group 
+                        ${isActive ? 'bg-indigo-600/10 border-indigo-500 shadow-lg shadow-indigo-500/5' : 'bg-slate-900/60 border-slate-800/80 hover:bg-slate-800/40 hover:border-slate-700'}">
+                        <img src="${poke.sprite}" alt="${poke.nome}" class="w-14 h-14 object-contain group-hover:scale-110 transition-transform">
+                        <div class="flex-grow">
+                            <div class="flex justify-between items-baseline mb-0.5">
+                                <span class="text-xs font-mono text-slate-500">#${poke.id}</span>
+                                <div class="flex items-center gap-1.5">
+                                    ${dreamBadge}
+                                    <span class="text-xs font-bold text-indigo-400">BST ${poke.total}</span>
+                                </div>
+                            </div>
+                            <h3 class="font-bold text-lg text-white group-hover:text-indigo-300 transition-colors">${poke.nome}</h3>
+                            <div class="flex gap-1.5 mt-1.5">${typesBadges}</div>
+                        </div>
+                    </button>
+                `;
+            }).join("");
+        }
+
+        function renderActive() {
+            const poke = pokemonData[activeIdx];
+            const panel = document.getElementById("active-panel");
+
+            const typesBadges = poke.tipos.map(t => 
+                `<span class="px-3 py-1 text-xs font-extrabold rounded-lg uppercase tracking-wider shadow-md ${getBadgeClass(t)}">${t}</span>`
+            ).join(" ");
+
+            const statsBars = Object.entries(poke.stats).map(([name, val]) => {
+                const pct = Math.min((val / 160) * 100, 100);
+                return `
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-400 font-medium">${name}</span>
+                            <span class="font-bold text-white font-mono">${val}</span>
+                        </div>
+                        <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-indigo-500 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+
+            const vantagensBadges = poke.vantagens.length > 0 
+                ? poke.vantagens.map(t => `<span class="px-2 py-1 text-xs font-bold rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 uppercase tracking-wider">${t}</span>`).join(" ")
+                : `<span class="text-sm text-slate-500 italic">Nenhuma</span>`;
+
+            const fraquezasBadges = poke.fraquezas.length > 0 
+                ? poke.fraquezas.map(t => `<span class="px-2 py-1 text-xs font-bold rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-400 uppercase tracking-wider">${t}</span>`).join(" ")
+                : `<span class="text-sm text-slate-500 italic">Nenhuma</span>`;
+
+            panel.innerHTML = `
+                <div class="md:col-span-5 flex flex-col items-center text-center">
+                    <div class="relative bg-slate-950/60 rounded-3xl p-6 border border-slate-800 w-full flex justify-center items-center h-56">
+                        <span class="absolute top-4 left-4 text-xs font-mono text-slate-500">ID #${poke.id}</span>
+                        <img src="${poke.sprite}" alt="${poke.nome}" class="w-48 h-48 md:w-52 md:h-52 object-contain drop-shadow-[0_10px_20px_rgba(99,102,241,0.2)]">
+                    </div>
+                    
+                    <h2 class="text-3xl font-black text-white mt-6 tracking-tight">${poke.nome}</h2>
+                    <div class="flex gap-2 mt-3">${typesBadges}</div>
+
+                    <div class="grid grid-cols-3 gap-2 w-full mt-6 bg-slate-900/60 border border-slate-800/60 rounded-xl p-3 text-center">
+                        <div>
+                            <span class="block text-[10px] text-slate-400 font-bold uppercase">Altura</span>
+                            <span class="text-sm font-extrabold text-white">${poke.altura} m</span>
+                        </div>
+                        <div>
+                            <span class="block text-[10px] text-slate-400 font-bold uppercase">Peso</span>
+                            <span class="text-sm font-extrabold text-white">${poke.peso} kg</span>
+                        </div>
+                        <div>
+                            <span class="block text-[10px] text-slate-400 font-bold uppercase">Habilidade</span>
+                            <span class="text-[11px] font-extrabold text-indigo-300 truncate block max-w-full" title="${poke.habilidade}">${poke.habilidade}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="md:col-span-7 flex flex-col justify-between space-y-6">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-baseline border-b border-slate-800 pb-2">
+                            <h3 class="text-md font-bold text-white uppercase tracking-wider">Atributos de Combate</h3>
+                            <span class="text-sm font-black text-indigo-400 font-mono">Total Base: ${poke.total}</span>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3">
+                            ${statsBars}
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 border-t border-slate-800 pt-4">
+                        <h3 class="text-md font-bold text-white uppercase tracking-wider">Combates Ofensivos e Defensivos</h3>
+                        
+                        <div class="space-y-3">
+                            <div>
+                                <span class="text-xs font-bold text-emerald-400 uppercase tracking-wide block mb-1.5">Vantagem de Tipo (Ataque 2x)</span>
+                                <div class="flex flex-wrap gap-1.5">${vantagensBadges}</div>
+                            </div>
+                            <div>
+                                <span class="text-xs font-bold text-rose-400 uppercase tracking-wide block mb-1.5">Fraqueza de Tipo (Defesa 2x)</span>
+                                <div class="flex flex-wrap gap-1.5">${fraquezasBadges}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setActive(idx) {
+            activeIdx = idx;
+            renderList();
+            renderActive();
+        }
+
+        renderList();
+        renderActive();
+    </script>
+</body>
+</html>
